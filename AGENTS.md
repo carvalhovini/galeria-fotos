@@ -37,6 +37,7 @@ galeria-fotos/
   assets/fonts/         # fonte TTF usada na marca d'água (licença livre, ex: DM Sans Bold)
   scripts/              # processamento e upload
   site/                 # projeto Astro
+  admin/                # gerenciador (Worker + interface Preact), projeto separado
   design/               # referências visuais (HTML do design desktop e celular)
 ```
 
@@ -81,6 +82,7 @@ albums/{albumId}/dl/2k/{photoId}.jpg
 albums/{albumId}/dl/fhd/{photoId}.jpg
 albums/{albumId}/dl/hd/{photoId}.jpg
 manifest.json
+manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenciador antes de cada alteração
 ```
 
 ### Formato do manifest.json
@@ -111,6 +113,43 @@ não precisa repetir caminhos.
   `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`.
 - Definir `Content-Type` correto e `Cache-Control: public, max-age=31536000, immutable`
   nos arquivos de foto. O `manifest.json` usa cache curto (`max-age=60`).
+- Título do álbum: `titulo.txt` tem prioridade; sem ele, mantém o título que já está no
+  manifest (pode ter sido renomeado no gerenciador); álbum novo usa o nome da pasta.
+- O `manifest.json` é gravado com escrita condicional (`If-Match` com o ETag lido, ou
+  `If-None-Match: *` se não existir). Em conflito (412), ler de novo e refazer a mesclagem.
+
+## Gerenciador (admin/)
+
+- Worker em TypeScript com assets estáticos (interface Preact, mesmo visual do site, celular
+  primeiro). Projeto separado com `admin/wrangler.jsonc`: nome `galeria-admin`, domínio
+  `admin.carvalhovini.com`, `workers_dev` e `preview_urls` desligados.
+- O Worker roda antes dos assets só em `/api/*`. Bucket via binding R2 `BUCKET`.
+- Segurança:
+  - O domínio fica atrás do Cloudflare Access. Toda rota `/api` valida o JWT do cabeçalho
+    `Cf-Access-Jwt-Assertion` (assinatura RS256 contra `{ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`
+    escolhendo a chave pelo `kid`, `iss`, `aud` = `ACCESS_AUD` e `exp`). Sem JWT válido: 401.
+    Sem `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` configurados: 500, nunca liberar.
+  - Requisições que alteram dados (PATCH, POST, DELETE) exigem `X-Galeria-Admin: 1` e
+    recusam `Sec-Fetch-Site` diferente de `same-origin` (403).
+  - Nunca registrar token, JWT ou secrets nos logs; só rota, status e códigos de erro.
+  - Nada de modo de contorno da autenticação no código. Testes locais usam `admin/dev/`
+    (chaves de teste e proxy que injeta o JWT), que nunca vai para produção.
+- Configuração: vars `PUBLIC_R2_BASE_URL`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `PURGE_ORIGINS`;
+  secrets `CF_API_TOKEN` (permissão só Zone > Cache Purge na zona) e `CF_ZONE_ID`.
+- API: `GET /api/albums`, `PATCH /api/albums/:id` (título), `POST /api/albums/:id/delete-photos`,
+  `DELETE /api/albums/:id` (exige `confirmTitle` igual ao título), `POST /api/purge`
+  (só URLs de `albums/` ou o `manifest.json` do domínio público).
+- Toda alteração do manifest: ler com ETag, aplicar numa cópia, gravar o anterior em
+  `manifest-backups/`, gravar com `onlyIf: { etagMatches }` e repetir do zero em conflito
+  (até 5 vezes). Só depois apagar os arquivos, para o site nunca listar foto já apagada.
+- Excluir foto remove as 6 versões. Álbum sem fotos sai do manifest e tudo em
+  `albums/{id}/` é apagado.
+- Purge depois de excluir: por URL, no máximo 100 itens por chamada (limite atual dos planos
+  Free/Pro/Business). A resposta das fotos varia com `Origin` (CORS), então cada URL vai
+  também com o cabeçalho `Origin` de cada domínio em `PURGE_ORIGINS`, no mesmo lote, junto
+  com o `manifest.json`. O Worker faz até 20 chamadas por requisição (plano Free: 50
+  subrequisições) e devolve o resto como pendente; a interface continua via `/api/purge`.
+  Falha de purge aparece na tela com botão para tentar de novo.
 
 ## Site (site/)
 

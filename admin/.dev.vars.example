@@ -1,0 +1,7 @@
+# Só para desenvolvimento local (copie para .dev.vars, que não vai para o git).
+# Aponta a validação do JWT e o purge para o servidor falso de dev/access-mock.mjs.
+ACCESS_TEAM_DOMAIN=http://127.0.0.1:8788
+ACCESS_AUD=galeria-admin-local
+CF_API_BASE=http://127.0.0.1:8788
+CF_API_TOKEN=token-falso-local
+CF_ZONE_ID=00000000000000000000000000000000
