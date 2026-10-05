@@ -22,6 +22,23 @@ export function parseAlbumDir(dir) {
   return { id: name, date, title: words.charAt(0).toUpperCase() + words.slice(1) };
 }
 
+// Primeira linha não vazia de originals/{albumId}/titulo.txt, ou null se não existir.
+export async function readTitleOverride(albumDir) {
+  let text;
+  try {
+    text = await fs.readFile(path.join(albumDir, 'titulo.txt'), 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+  const line = text
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find(Boolean);
+  return line ? line.normalize('NFC') : null;
+}
+
 export function sanitizePhotoId(baseName) {
   return baseName
     .normalize('NFD')
