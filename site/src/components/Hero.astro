@@ -1,0 +1,11 @@
+---
+import { SITE } from '../config';
+import BallIcon from './BallIcon.astro';
+---
+
+<section class="hero container">
+  <BallIcon class="hero-ball" size={320} stroke="#2A2622" strokeWidth={0.5} />
+  <p class="eyebrow">{SITE.hero.eyebrow}</p>
+  <h1>{SITE.hero.title}</h1>
+  <p class="hero-sub">{SITE.hero.subtitle}</p>
+</section>

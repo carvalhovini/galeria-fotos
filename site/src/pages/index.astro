@@ -1,0 +1,16 @@
+---
+import Base from '../layouts/Base.astro';
+import Footer from '../components/Footer.astro';
+import Gallery from '../components/Gallery';
+import Header from '../components/Header.astro';
+import Hero from '../components/Hero.astro';
+import Support from '../components/Support.astro';
+---
+
+<Base>
+  <Header />
+  <Hero />
+  <Gallery client:load />
+  <Support />
+  <Footer />
+</Base>

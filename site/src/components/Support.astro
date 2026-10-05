@@ -1,0 +1,75 @@
+---
+import { HAS_PIX, SITE } from '../config';
+import InstagramIcon from './InstagramIcon.astro';
+---
+
+<section id="apoie" class="support container">
+  <h2>Curtiu as fotos?</h2>
+  <p class="support-intro">
+    {
+      HAS_PIX
+        ? 'Tudo aqui é de graça e vai continuar sendo. Se quiser retribuir, tem dois jeitos, e os dois são opcionais.'
+        : 'Tudo aqui é de graça e vai continuar sendo. Se quiser retribuir, é só me marcar no Instagram.'
+    }
+  </p>
+  <div class="cards">
+    {
+      HAS_PIX && (
+        <div class="card">
+          <p class="card-eyebrow">Ajuda de custo</p>
+          <p class="card-text">Se quiser ajudar a pagar equipamento e deslocamento, qualquer valor via Pix já ajuda.</p>
+          <div class="pix-row">
+            <code class="pix-key">{SITE.pix.key}</code>
+            <button type="button" class="btn-primary" data-copy-pix={SITE.pix.key}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="12" height="12" rx="2" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+              </svg>
+              <span data-copy-label>Copiar chave</span>
+            </button>
+          </div>
+          <p class="card-caption">Chave Pix ({SITE.pix.keyType})</p>
+          <p class="visually-hidden" role="status" data-copy-status></p>
+        </div>
+      )
+    }
+    <div class="card">
+      <p class="card-eyebrow">Só me marque</p>
+      <p class="card-text">
+        Vai postar alguma foto? Marca o <strong>{SITE.instagram.handle}</strong> no Instagram, assim eu vejo e outras pessoas
+        encontram o resto da galeria.
+      </p>
+      <a class="pill pill-strong" href={SITE.instagram.url} target="_blank" rel="noopener">
+        <InstagramIcon />
+        Abrir o Instagram
+      </a>
+    </div>
+  </div>
+</section>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-copy-pix]');
+  if (button) {
+    const label = button.querySelector('[data-copy-label]')!;
+    const status = document.querySelector('[data-copy-status]')!;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyPix ?? '');
+        label.textContent = 'Chave copiada';
+        status.textContent = 'Chave Pix copiada';
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('.pix-key')!);
+        getSelection()?.removeAllRanges();
+        getSelection()?.addRange(range);
+        label.textContent = 'Selecionada, copie manualmente';
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        label.textContent = 'Copiar chave';
+        status.textContent = '';
+      }, 2200);
+    });
+  }
+</script>

@@ -55,7 +55,25 @@ npm run upload -- 2026-09-27_final-estadual
 
 ## Site
 
-Ainda não implementado.
+Projeto Astro em `site/`, com dependências próprias:
+
+```sh
+cd site
+npm install
+npm run dev      # http://localhost:4321
+npm run build    # gera site/dist/
+npm run check    # checagem de tipos
+```
+
+O site lê `manifest.json` do bucket no navegador, então um jogo novo aparece assim que o
+upload termina, sem novo build. Por padrão usa `https://fotos.carvalhovini.com`; para apontar
+para outro lugar, crie `site/.env` com `PUBLIC_R2_BASE_URL` (veja `site/.env.example`).
+
+Textos do topo, link do Instagram e chave Pix ficam em `site/src/config.ts`. Enquanto a chave
+for `[SUA-CHAVE-PIX]`, o cartão do Pix não aparece.
+
+O bucket precisa de uma regra de CORS liberando GET para as origens do site (o domínio
+final e `http://localhost:4321` em desenvolvimento), senão o manifest e os downloads falham.
 
 ## Fonte
 
