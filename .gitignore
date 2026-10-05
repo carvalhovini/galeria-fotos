@@ -12,3 +12,8 @@ node_modules/
 dist/
 .astro/
 .DS_Store
+
+# fotos soltas na raiz
+/*.[jJ][pP][gG]
+/*.[jJ][pP][eE][gG]
+/*.[pP][nN][gG]
