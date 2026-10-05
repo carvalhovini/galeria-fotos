@@ -13,7 +13,7 @@ export const INPUT_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
 export const JPEG_OPTIONS = { quality: 85, mozjpeg: true };
 
 export const VARIANTS = [
-  { key: 'thumb', dir: 'thumb', size: 600, watermark: false },
+  { key: 'thumb', dir: 'thumb', size: 900, watermark: false },
   { key: 'preview', dir: 'preview', size: 1600, watermark: false },
   { key: '4k', dir: 'dl/4k', size: 3840, watermark: true },
   { key: '2k', dir: 'dl/2k', size: 2560, watermark: true },

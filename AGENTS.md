@@ -53,7 +53,7 @@ Para cada foto original, gerar:
 
 | Arquivo | Lado maior | Marca d'água |
 |---|---|---|
-| thumb | 600 px | não |
+| thumb | 900 px | não |
 | preview | 1600 px | não |
 | dl/4k | 3840 px | sim |
 | dl/2k | 2560 px | sim |

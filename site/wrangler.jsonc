@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "galeria-fotos",
+  "compatibility_date": "2026-10-05",
+  // Site 100% estático: sem script do Worker, só os arquivos gerados por `npm run build`.
+  "assets": {
+    "directory": "./dist"
+  }
+}

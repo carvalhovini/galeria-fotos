@@ -61,7 +61,7 @@ export async function buildZip(
   { signal, concurrency = 4, onProgress }: { signal?: AbortSignal; concurrency?: number; onProgress?: (fraction: number, filesDone: number) => void } = {},
 ): Promise<Blob> {
   const fractions = new Array(items.length).fill(0);
-  const files: Record<string, Uint8Array> = {};
+  const results: Uint8Array[] = new Array(items.length);
   let filesDone = 0;
   let next = 0;
   const report = () => onProgress?.(fractions.reduce((a, b) => a + b, 0) / items.length, filesDone);
@@ -70,7 +70,7 @@ export async function buildZip(
     while (next < items.length) {
       const index = next++;
       const item = items[index];
-      files[item.path] = await fetchBytes(item.url, {
+      results[index] = await fetchBytes(item.url, {
         signal,
         onProgress: (loaded, total) => {
           fractions[index] = total ? Math.min(loaded / total, 1) : 0;
@@ -85,6 +85,9 @@ export async function buildZip(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
   signal?.throwIfAborted();
 
+  // fflate grava as entradas na ordem de inserção das chaves.
+  const files: Record<string, Uint8Array> = {};
+  items.forEach((item, i) => (files[item.path] = results[i]));
   const zipped = zipSync(files, { level: 0 });
   return new Blob([zipped as BlobPart], { type: 'application/zip' });
 }

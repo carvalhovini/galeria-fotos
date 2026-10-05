@@ -63,7 +63,11 @@ npm install
 npm run dev      # http://localhost:4321
 npm run build    # gera site/dist/
 npm run check    # checagem de tipos
+npm run preview:worker   # build + servidor local do Worker (http://localhost:8787)
 ```
+
+O deploy é um Cloudflare Worker só com assets estáticos: `site/wrangler.jsonc` publica a
+pasta `dist/` gerada pelo build.
 
 O site lê `manifest.json` do bucket no navegador, então um jogo novo aparece assim que o
 upload termina, sem novo build. Por padrão usa `https://fotos.carvalhovini.com`; para apontar

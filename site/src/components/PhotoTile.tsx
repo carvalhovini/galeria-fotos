@@ -10,7 +10,7 @@ interface Props {
 
 export default function PhotoTile({ item, selected, onToggle, onZoom }: Props) {
   const { album, photo, n, key } = item;
-  const thumb = scaledSize(photo, 600);
+  const thumb = scaledSize(photo, 900);
   const name = `Foto ${n}${album.title ? ` de ${album.title}` : ''}`;
 
   return (
