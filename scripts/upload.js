@@ -5,7 +5,7 @@ import { parseAlbumDir, readTitleOverride } from './lib/album.js';
 import { loadEnvFile, requireEnv } from './lib/env.js';
 import { emptyManifest, mergeAlbums, parseManifest, summarizeManifest } from './lib/manifest.js';
 import { runPool } from './lib/pool.js';
-import { createR2Client, describeError, getText, headSize, putObject, withRetry } from './lib/r2.js';
+import { createR2Client, describeError, getText, headSize, isPreconditionFailed, putObject, withRetry } from './lib/r2.js';
 
 function usage() {
   console.log('Uso: npm run upload -- AAAA-MM-DD_nome-do-jogo [outro-album ...] [--dry-run] [--overwrite]');
@@ -62,15 +62,22 @@ async function prepareAlbum(arg) {
   if (override?.includes('—')) {
     console.warn(`AVISO: ${id}: o título em titulo.txt usa travessão (—). A convenção do site é não usar.`);
   }
-  const title = override ?? albumJson.title;
 
   return {
     id,
-    title,
-    titleSource: override ? 'titulo.txt' : 'nome da pasta',
+    titleOverride: override,
+    folderTitle: albumJson.title,
     files,
-    entry: { id, date: albumJson.date, title, photos: albumJson.photos },
+    entry: { id, date: albumJson.date, photos: albumJson.photos },
   };
+}
+
+// titulo.txt tem prioridade; sem ele, mantém o título já publicado (que pode ter sido
+// renomeado no gerenciador); álbum novo usa o nome da pasta.
+function resolveTitle(album, existing) {
+  if (album.titleOverride) return { title: album.titleOverride, source: 'do titulo.txt' };
+  if (existing?.title) return { title: existing.title, source: 'mantido do manifest' };
+  return { title: album.folderTitle, source: 'do nome da pasta' };
 }
 
 async function uploadAlbum(album, ctx) {
@@ -79,7 +86,7 @@ async function uploadAlbum(album, ctx) {
   const onRetry = (key) => (err, attempt, delay) =>
     console.warn(`  tentativa ${attempt} falhou em ${key} (${describeError(err, secrets)}). Nova tentativa em ${delay} ms.`);
 
-  console.log(`\nÁlbum ${album.id}: "${album.title}" (título do ${album.titleSource}), ${album.files.length} arquivos`);
+  console.log(`\nÁlbum ${album.id}: ${album.files.length} arquivos`);
 
   const results = await runPool(album.files, UPLOAD.concurrency, async (file) => {
     try {
@@ -129,53 +136,68 @@ async function updateManifest(albums, ctx) {
   const onRetry = (err, attempt, delay) =>
     console.warn(`  tentativa ${attempt} falhou no manifest (${describeError(err, secrets)}). Nova tentativa em ${delay} ms.`);
 
-  const currentText = await withRetry(() => getText(client, bucket, key), { onRetry });
-  const current = currentText === null ? emptyManifest() : parseManifest(currentText);
-  const next = mergeAlbums(current, albums.map((a) => a.entry));
+  // Grava só se o manifest não mudou desde a leitura (ETag). Se o gerenciador ou outro upload
+  // alterou no meio, lê de novo e refaz a mesclagem.
+  for (let attempt = 1; ; attempt++) {
+    const current = await withRetry(() => getText(client, bucket, key), { onRetry });
+    const manifest = current === null ? emptyManifest() : parseManifest(current.text);
 
-  const before = summarizeManifest(current);
-  const after = summarizeManifest(next);
-  console.log(`\nManifest${dryRun ? ' (simulação)' : ''}: ${currentText === null ? 'não existia no bucket' : 'atual lido do bucket'}`);
-  let changed = false;
-  for (const album of albums) {
-    const existing = current.albums.find((a) => a.id === album.id);
-    let action;
-    if (!existing) {
-      action = `novo (${album.entry.photos.length} fotos)`;
-    } else if (JSON.stringify(existing) === JSON.stringify(album.entry)) {
-      action = 'sem mudanças';
-    } else {
-      action = `atualizado (${existing.photos?.length ?? 0} -> ${album.entry.photos.length} fotos)`;
+    const entries = [];
+    console.log(`\nManifest${dryRun ? ' (simulação)' : ''}: ${current === null ? 'não existia no bucket' : 'atual lido do bucket'}`);
+    let changed = false;
+    for (const album of albums) {
+      const existing = manifest.albums.find((a) => a.id === album.id);
+      const { title, source } = resolveTitle(album, existing);
+      const entry = { id: album.entry.id, date: album.entry.date, title, photos: album.entry.photos };
+      entries.push(entry);
+      let action;
+      if (!existing) {
+        action = `novo (${entry.photos.length} fotos)`;
+      } else if (JSON.stringify(existing) === JSON.stringify(entry)) {
+        action = 'sem mudanças';
+      } else {
+        action = `atualizado (${existing.photos?.length ?? 0} -> ${entry.photos.length} fotos)`;
+      }
+      if (action !== 'sem mudanças') changed = true;
+      console.log(`  ${album.id}: ${action}, título "${title}" (${source})`);
     }
-    if (action !== 'sem mudanças') changed = true;
-    console.log(`  ${album.id}: ${action}, título "${album.title}"`);
-  }
-  console.log(`  Antes: ${before.albums} álbum(ns), ${before.photos} foto(s). Depois: ${after.albums} álbum(ns), ${after.photos} foto(s).`);
+    const next = mergeAlbums(manifest, entries);
+    const before = summarizeManifest(manifest);
+    const after = summarizeManifest(next);
+    console.log(`  Antes: ${before.albums} álbum(ns), ${before.photos} foto(s). Depois: ${after.albums} álbum(ns), ${after.photos} foto(s).`);
 
-  if (!changed) {
-    console.log('  O manifest já está atualizado com esse(s) álbum(ns). Nada a enviar.');
-    return;
-  }
-  if (dryRun) {
-    console.log('  Nada foi enviado (--dry-run).');
-    return;
-  }
+    if (!changed) {
+      console.log('  O manifest já está atualizado com esse(s) álbum(ns). Nada a enviar.');
+      return;
+    }
+    if (dryRun) {
+      console.log('  Nada foi enviado (--dry-run).');
+      return;
+    }
 
-  if (currentText !== null) {
-    const backupDir = path.join(OUTPUT_DIR, 'manifest-backups');
-    await fs.mkdir(backupDir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    await fs.writeFile(path.join(backupDir, `manifest-${stamp}.json`), currentText);
+    if (current !== null) {
+      const backupDir = path.join(OUTPUT_DIR, 'manifest-backups');
+      await fs.mkdir(backupDir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      await fs.writeFile(path.join(backupDir, `manifest-${stamp}.json`), current.text);
+    }
+    try {
+      await withRetry(
+        () =>
+          putObject(client, bucket, key, `${JSON.stringify(next, null, 2)}\n`, {
+            contentType: UPLOAD.manifestContentType,
+            cacheControl: UPLOAD.manifestCacheControl,
+            ...(current === null ? { ifNoneMatch: '*' } : { ifMatch: current.etag }),
+          }),
+        { onRetry },
+      );
+      console.log('  manifest.json enviado.');
+      return;
+    } catch (err) {
+      if (!isPreconditionFailed(err) || attempt >= UPLOAD.manifestConflictAttempts) throw err;
+      console.warn(`  O manifest foi alterado por outra operação durante o upload. Lendo de novo (tentativa ${attempt + 1}).`);
+    }
   }
-  await withRetry(
-    () =>
-      putObject(client, bucket, key, `${JSON.stringify(next, null, 2)}\n`, {
-        contentType: UPLOAD.manifestContentType,
-        cacheControl: UPLOAD.manifestCacheControl,
-      }),
-    { onRetry },
-  );
-  console.log('  manifest.json enviado.');
 }
 
 async function main() {

@@ -47,6 +47,7 @@ export const UPLOAD = {
   manifestKey: 'manifest.json',
   manifestCacheControl: 'public, max-age=60',
   manifestContentType: 'application/json; charset=utf-8',
+  manifestConflictAttempts: 5,
 };
 
 export const R2_ENV_VARS = [

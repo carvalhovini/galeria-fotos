@@ -65,17 +65,23 @@ export async function headSize(client, bucket, key) {
   }
 }
 
+export function isPreconditionFailed(err) {
+  return statusOf(err) === 412 || err?.name === 'PreconditionFailed';
+}
+
+// Retorna { text, etag }, ou null se o objeto não existir.
 export async function getText(client, bucket, key) {
   try {
     const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-    return await res.Body.transformToString('utf-8');
+    return { text: await res.Body.transformToString('utf-8'), etag: res.ETag };
   } catch (err) {
     if (isNotFound(err)) return null;
     throw err;
   }
 }
 
-export async function putObject(client, bucket, key, body, { contentType, cacheControl }) {
+// `ifMatch` / `ifNoneMatch` tornam a escrita condicional (falha com 412 se a condição não vale).
+export async function putObject(client, bucket, key, body, { contentType, cacheControl, ifMatch, ifNoneMatch }) {
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
@@ -83,6 +89,8 @@ export async function putObject(client, bucket, key, body, { contentType, cacheC
       Body: body,
       ContentType: contentType,
       CacheControl: cacheControl,
+      IfMatch: ifMatch,
+      IfNoneMatch: ifNoneMatch,
     }),
   );
 }
