@@ -1,0 +1,14 @@
+# segredos
+.env
+.env.*
+!.env.example
+
+# fotos e saídas geradas
+originals/
+output/
+
+# dependências e builds
+node_modules/
+dist/
+.astro/
+.DS_Store
