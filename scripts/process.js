@@ -11,7 +11,7 @@ import {
   VARIANTS,
   WATERMARK,
 } from './lib/config.js';
-import { listPhotos, parseAlbumDir, readExifInfo, sortByTakenAt } from './lib/album.js';
+import { listPhotos, parseAlbumDir, readExifInfo, sortByTakenAt, takenAtText } from './lib/album.js';
 import { createWatermark } from './lib/watermark.js';
 
 const STATE_FILE = '.process-state.json';
@@ -163,7 +163,10 @@ async function processAlbum(dir, { force, hashes }) {
     id: album.id,
     date: album.date,
     title: album.title,
-    photos: sortByTakenAt(done).map(({ id, w, h }) => ({ id, w, h })),
+    photos: sortByTakenAt(done).map(({ id, w, h, takenAt }) => {
+      const t = takenAtText(takenAt);
+      return t ? { id, w, h, t } : { id, w, h };
+    }),
   };
   await fs.mkdir(albumOut, { recursive: true });
   await fs.writeFile(path.join(albumOut, 'album.json'), `${JSON.stringify(albumJson, null, 2)}\n`);

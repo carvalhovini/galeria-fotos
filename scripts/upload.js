@@ -3,7 +3,7 @@ import path from 'node:path';
 import { ORIGINALS_DIR, OUTPUT_DIR, R2_ENV_VARS, UPLOAD, VARIANTS } from './lib/config.js';
 import { parseAlbumDir, readTitleOverride } from './lib/album.js';
 import { loadEnvFile, requireEnv } from './lib/env.js';
-import { emptyManifest, mergeAlbums, parseManifest, summarizeManifest } from './lib/manifest.js';
+import { emptyManifest, mergeAlbums, parseManifest, summarizeManifest, unionPhotos } from './lib/manifest.js';
 import { runPool } from './lib/pool.js';
 import { createR2Client, describeError, getText, headSize, isPreconditionFailed, putObject, withRetry } from './lib/r2.js';
 
@@ -45,7 +45,7 @@ async function prepareAlbum(arg) {
       const localPath = path.join(albumOut, rel);
       try {
         const { size } = await fs.stat(localPath);
-        files.push({ key: `albums/${id}/${rel}`, localPath, size });
+        files.push({ key: `albums/${id}/${rel}`, localPath, size, photoId: photo.id });
       } catch {
         missing.push(rel);
       }
@@ -121,6 +121,7 @@ async function uploadAlbum(album, ctx) {
   });
 
   const count = (status) => results.filter((r) => r.status === status).length;
+  album.divergentIds = new Set(results.filter((r) => r.status === 'divergent').map((r) => r.file.photoId));
   return {
     sent: count('sent'),
     overwritten: count('overwritten'),
@@ -131,7 +132,7 @@ async function uploadAlbum(album, ctx) {
 }
 
 async function updateManifest(albums, ctx) {
-  const { client, bucket, dryRun, secrets } = ctx;
+  const { client, bucket, dryRun, overwrite, secrets } = ctx;
   const key = UPLOAD.manifestKey;
   const onRetry = (err, attempt, delay) =>
     console.warn(`  tentativa ${attempt} falhou no manifest (${describeError(err, secrets)}). Nova tentativa em ${delay} ms.`);
@@ -148,8 +149,12 @@ async function updateManifest(albums, ctx) {
     for (const album of albums) {
       const existing = manifest.albums.find((a) => a.id === album.id);
       const { title, source } = resolveTitle(album, existing);
-      const entry = { id: album.entry.id, date: album.entry.date, title, photos: album.entry.photos };
-      if (existing?.cover && entry.photos.some((p) => p.id === existing.cover)) entry.cover = existing.cover;
+      const { photos, added } = unionPhotos(existing?.photos, album.entry.photos, {
+        overwrite,
+        skipIds: album.divergentIds,
+      });
+      const entry = { ...existing, id: album.entry.id, date: album.entry.date, title, photos };
+      if (entry.cover && !photos.some((p) => p.id === entry.cover)) delete entry.cover;
       entries.push(entry);
       let action;
       if (!existing) {
@@ -157,7 +162,7 @@ async function updateManifest(albums, ctx) {
       } else if (JSON.stringify(existing) === JSON.stringify(entry)) {
         action = 'sem mudanças';
       } else {
-        action = `atualizado (${existing.photos?.length ?? 0} -> ${entry.photos.length} fotos)`;
+        action = `atualizado (${existing.photos?.length ?? 0} -> ${entry.photos.length} fotos, ${added} nova(s))`;
       }
       if (action !== 'sem mudanças') changed = true;
       console.log(`  ${album.id}: ${action}, título "${title}" (${source})`);

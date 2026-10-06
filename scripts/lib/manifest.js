@@ -25,6 +25,27 @@ export function mergeAlbums(manifest, albums, now = new Date()) {
   return { ...manifest, updatedAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z'), albums: merged };
 }
 
+// União das fotos de um álbum por id. Uma foto já publicada mantém a entrada atual (só ganha
+// o horário `t` se não tinha), a não ser com `overwrite`; `skipIds` são fotos cujo arquivo no
+// bucket é outro e nunca trocam de entrada. Se todas as fotos têm `t`, ordena por horário;
+// senão mantém a ordem publicada e põe as novas no fim, na ordem em que vieram.
+export function unionPhotos(existing = [], incoming = [], { overwrite = false, skipIds = new Set() } = {}) {
+  const incomingById = new Map(incoming.map((p) => [p.id, p]));
+  const merged = existing.map((old) => {
+    const next = incomingById.get(old.id);
+    if (!next || skipIds.has(old.id)) return old;
+    if (overwrite) return next;
+    return old.t || !next.t ? old : { ...old, t: next.t };
+  });
+  const known = new Set(existing.map((p) => p.id));
+  const added = incoming.filter((p) => !known.has(p.id));
+  merged.push(...added);
+  if (merged.every((p) => typeof p.t === 'string')) {
+    merged.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  }
+  return { photos: merged, added: added.length };
+}
+
 export function summarizeManifest(manifest) {
   const photos = manifest.albums.reduce((sum, a) => sum + (a.photos?.length ?? 0), 0);
   return { albums: manifest.albums.length, photos };

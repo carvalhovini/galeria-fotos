@@ -111,6 +111,19 @@ export async function readExifInfo(file) {
   };
 }
 
+// Horário EXIF como texto sem fuso ("2026-10-04T15:23:11.120"), que é o relógio da câmera.
+// O exifr monta a data no fuso da máquina, então os getters locais devolvem a hora original,
+// e o resultado é o mesmo no Mac e no runner do GitHub (UTC). Ordena como texto.
+export function takenAtText(takenAt) {
+  if (takenAt === null) return null;
+  const d = new Date(takenAt);
+  const pad = (n, size = 2) => String(n).padStart(size, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+  );
+}
+
 export function sortByTakenAt(photos) {
   return [...photos].sort((a, b) => {
     if (a.takenAt !== b.takenAt) {

@@ -1,4 +1,14 @@
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { createWriteStream } from 'node:fs';
+import fs from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { UPLOAD } from './config.js';
 
 // R2_ENDPOINT é opcional e serve só para testar contra um servidor S3 local.
@@ -78,6 +88,35 @@ export async function getText(client, bucket, key) {
     if (isNotFound(err)) return null;
     throw err;
   }
+}
+
+// Todos os objetos com o prefixo: [{ key, size }].
+export async function listObjects(client, bucket, prefix) {
+  const out = [];
+  let token;
+  do {
+    const res = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }));
+    for (const obj of res.Contents ?? []) out.push({ key: obj.Key, size: obj.Size ?? 0 });
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return out;
+}
+
+// Grava num arquivo temporário e renomeia no fim, para nunca deixar arquivo pela metade.
+export async function downloadToFile(client, bucket, key, filePath) {
+  const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const tmp = `${filePath}.part`;
+  try {
+    await pipeline(res.Body, createWriteStream(tmp));
+    await fs.rename(tmp, filePath);
+  } catch (err) {
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
+}
+
+export async function deleteObject(client, bucket, key) {
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 // `ifMatch` / `ifNoneMatch` tornam a escrita condicional (falha com 412 se a condição não vale).

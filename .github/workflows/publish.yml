@@ -1,0 +1,68 @@
+# Publica um álbum enviado pelo gerenciador: baixa as fotos do bucket de entrada, processa,
+# envia para o bucket público, une ao manifest e limpa a entrada. Disparado pelo gerenciador
+# (workflow_dispatch). Os nomes dos passos aparecem na tela do gerenciador como andamento.
+name: Publicar álbum
+run-name: Publicar ${{ inputs.albumId }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      albumId:
+        description: Id do álbum (AAAA-MM-DD_nome-do-jogo)
+        required: true
+        type: string
+
+# Nunca duas publicações ao mesmo tempo. Uma nova espera a atual terminar.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # A entrada vai por variável de ambiente, nunca interpolada direto no shell.
+      ALBUM_ID: ${{ inputs.albumId }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_INBOX_BUCKET: ${{ vars.R2_INBOX_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+    steps:
+      - name: Conferir o id do álbum
+        run: |
+          if [[ ! "$ALBUM_ID" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}_[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+            echo "::error::Id de álbum inválido. Use AAAA-MM-DD_nome-do-jogo."
+            exit 1
+          fi
+
+      - name: Baixar o código
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Baixar da entrada
+        run: node scripts/inbox.js pull "$ALBUM_ID"
+
+      - name: Processar fotos
+        run: npm run process -- "originals/$ALBUM_ID"
+
+      - name: Enviar e atualizar o site
+        run: npm run upload -- "$ALBUM_ID"
+
+      - name: Limpar a entrada
+        run: node scripts/inbox.js clean "$ALBUM_ID"
