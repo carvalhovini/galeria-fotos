@@ -2,6 +2,7 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -19,8 +20,8 @@ export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
 }
 
-export function errorResponse(status: number, message: string): Response {
-  return json({ error: message }, status);
+export function errorResponse(status: number, message: string, code?: string): Response {
+  return json(code ? { error: message, code } : { error: message }, status);
 }
 
 export async function readJson(request: Request): Promise<Record<string, unknown>> {

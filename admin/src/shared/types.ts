@@ -2,6 +2,7 @@ export interface Photo {
   id: string;
   w: number;
   h: number;
+  t?: string;
 }
 
 export interface Album {
@@ -61,4 +62,98 @@ export interface DeleteResponse {
 
 export interface ApiError {
   error: string;
+  code?: string;
+}
+
+// Envio pelo celular (bucket de entrada) e publicação.
+
+export const INBOX_META_FILE = '_album.json';
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+export const UPLOAD_EXTENSIONS = ['.jpg', '.jpeg'];
+
+// Mesma regra de scripts/lib/album.js (sanitizePhotoId).
+export function sanitizePhotoId(baseName: string): string {
+  return baseName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Nome do arquivo na entrada ({photoId}.jpg), ou null se não for .jpg/.jpeg ou não gerar um id.
+export function inboxFileName(original: string): string | null {
+  const dot = original.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const ext = original.slice(dot).toLowerCase();
+  if (!UPLOAD_EXTENSIONS.includes(ext)) return null;
+  const id = sanitizePhotoId(original.slice(0, dot));
+  return id && PHOTO_ID_RE.test(id) ? `${id}.jpg` : null;
+}
+
+export function slugify(title: string): string {
+  return title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/, '');
+}
+
+export interface InboxMeta {
+  title: string;
+  date: string;
+}
+
+export interface InboxFile {
+  name: string;
+  size: number;
+}
+
+export interface InboxAlbum {
+  albumId: string;
+  title: string | null;
+  date: string;
+  photos: number;
+  bytes: number;
+  updatedAt: string;
+}
+
+export interface InboxResponse {
+  albums: InboxAlbum[];
+}
+
+export interface UploadListResponse {
+  albumId: string;
+  meta: InboxMeta | null;
+  files: InboxFile[];
+  // Fotos que já estão publicadas nesse álbum (o envio recusa esses nomes).
+  published: string[];
+}
+
+export interface UploadResponse {
+  name: string;
+  size: number;
+}
+
+export interface PublishRun {
+  id: number;
+  albumId: string | null;
+  status: string;
+  conclusion: string | null;
+  htmlUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  step: string | null;
+  stepsDone: number;
+  stepsTotal: number;
+}
+
+export interface PublishStatus {
+  configured: boolean;
+  busy: boolean;
+  // Por que envio e exclusões estão bloqueados (ou por que não deu para confirmar).
+  message: string | null;
+  run: PublishRun | null;
 }

@@ -13,6 +13,7 @@ import type { AccessIdentity } from './access';
 import type { Env } from './env';
 import { HttpError } from './http';
 import { findAlbum, readManifest, updateManifest } from './manifest';
+import { assertNotPublishing } from './publish';
 import { purgeUrls } from './purge';
 
 const MAX_PHOTOS_PER_DELETE = 1000;
@@ -34,7 +35,7 @@ function normalizeTitle(value: unknown): string {
   return typeof value === 'string' ? value.normalize('NFC').replace(/\s+/g, ' ').trim() : '';
 }
 
-function validTitle(value: unknown): string {
+export function validTitle(value: unknown): string {
   const title = normalizeTitle(value);
   if (!title) throw new HttpError(400, 'Digite um título.');
   if (title.length > TITLE_MAX) throw new HttpError(400, `O título pode ter no máximo ${TITLE_MAX} caracteres.`);
@@ -103,6 +104,7 @@ export async function deletePhotos(env: Env, albumId: string, body: Record<strin
   if (raw.length > MAX_PHOTOS_PER_DELETE) throw new HttpError(400, `Exclua no máximo ${MAX_PHOTOS_PER_DELETE} fotos por vez.`);
   if (!raw.every((id) => typeof id === 'string' && PHOTO_ID_RE.test(id))) throw new HttpError(400, 'Lista de fotos inválida.');
   const wanted = new Set(raw as string[]);
+  await assertNotPublishing(env);
 
   let removed: string[] = [];
   let remaining = null as Album | null;
@@ -126,6 +128,7 @@ export async function deletePhotos(env: Env, albumId: string, body: Record<strin
 export async function deleteAlbum(env: Env, albumId: string, body: Record<string, unknown>): Promise<DeleteResponse> {
   const typed = normalizeTitle(body.confirmTitle);
   if (!typed) throw new HttpError(400, 'Digite o título do álbum para confirmar.');
+  await assertNotPublishing(env);
 
   const { backupKey } = await updateManifest(env.BUCKET, (m) => {
     const album = findAlbum(m, albumId);

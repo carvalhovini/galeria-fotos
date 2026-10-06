@@ -51,6 +51,14 @@ try {
     httpMetadata: { contentType: 'application/json; charset=utf-8', cacheControl: 'public, max-age=60' },
   });
   console.log(`manifest.json local: ${albums.length} álbum(ns).`);
+
+  let cleared = 0;
+  for (let page = await env.INBOX.list(); ; page = await env.INBOX.list({ cursor: page.cursor })) {
+    if (page.objects.length) await env.INBOX.delete(page.objects.map((o) => o.key));
+    cleared += page.objects.length;
+    if (!page.truncated) break;
+  }
+  console.log(`Entrada local limpa (${cleared} arquivo(s) apagado(s)).`);
 } finally {
   await dispose();
 }
