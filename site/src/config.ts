@@ -3,11 +3,11 @@
 export const SITE = {
   name: 'carvalho_.vini',
   url: 'https://carvalhovini.com',
-  title: 'carvalho_.vini | Fotos de basquete',
-  description: 'Galeria de fotos de basquete. Escolha o jogo, selecione as fotos e baixe grátis.',
+  title: 'carvalho_.vini | Fotos de esporte',
+  description: 'Galeria de fotos de esporte. Escolha o jogo, selecione as fotos e baixe grátis.',
 
   hero: {
-    eyebrow: 'Fotos de basquete',
+    eyebrow: 'Fotos de esporte',
     title: 'O jogo pelas minhas lentes',
     subtitle: 'Sou fotógrafo amador e faço isso porque gosto.',
   },
@@ -29,15 +29,33 @@ export const HAS_PIX = SITE.pix.key.trim() !== '' && SITE.pix.key !== PIX_PLACEH
 
 export const R2_BASE_URL = (import.meta.env.PUBLIC_R2_BASE_URL || 'https://fotos.carvalhovini.com').replace(/\/+$/, '');
 
-export const MAX_PER_DOWNLOAD = 40;
+// Limite de um download (zip montado na memória do navegador), pelo tamanho estimado.
+export const DOWNLOAD_LIMIT_MB = 150;
 
+// `mb`: tamanho médio estimado de uma foto nessa resolução.
 export const RESOLUTIONS = [
-  { id: '4k', label: '4K', px: 3840 },
-  { id: '2k', label: '2K', px: 2560 },
-  { id: 'fhd', label: 'Full HD', px: 1920 },
-  { id: 'hd', label: 'HD', px: 1280 },
+  { id: '4k', label: '4K', px: 3840, mb: 1 },
+  { id: '2k', label: '2K', px: 2560, mb: 0.5 },
+  { id: 'fhd', label: 'Full HD', px: 1920, mb: 0.3 },
+  { id: 'hd', label: 'HD', px: 1280, mb: 0.15 },
 ] as const;
 
 export type ResolutionId = (typeof RESOLUTIONS)[number]['id'];
+export type Resolution = (typeof RESOLUTIONS)[number];
+
+export const PHOTOS_PER_BATCH = 36;
+
+export function resolution(id: ResolutionId): Resolution {
+  return RESOLUTIONS.find((r) => r.id === id)!;
+}
+
+export function maxPhotosFor(id: ResolutionId): number {
+  return Math.floor(DOWNLOAD_LIMIT_MB / resolution(id).mb + 1e-9);
+}
+
+// Maior resolução em que `count` fotos cabem num download, ou null se nenhuma.
+export function bestFittingResolution(count: number): Resolution | null {
+  return RESOLUTIONS.find((r) => count <= maxPhotosFor(r.id)) ?? null;
+}
 
 export const FILE_PREFIX = 'carvalho_.vini';

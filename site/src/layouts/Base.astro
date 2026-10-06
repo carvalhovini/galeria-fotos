@@ -18,6 +18,10 @@ import { R2_BASE_URL, SITE } from '../config';
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href={SITE.url} />
     <link rel="preconnect" href={R2_BASE_URL} crossorigin />
+    <link rel="preconnect" href={R2_BASE_URL} />
+    <script is:inline>
+      document.documentElement.dataset.view = new URLSearchParams(location.search).has('album') ? 'album' : 'home';
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:site_name" content={SITE.name} />

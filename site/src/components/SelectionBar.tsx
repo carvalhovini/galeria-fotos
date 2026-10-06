@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { FILE_PREFIX, HAS_PIX, MAX_PER_DOWNLOAD, RESOLUTIONS, SITE, type ResolutionId } from '../config';
-import { buildZip, canShareFiles, fetchBytes, saveBlob, shareJpeg } from '../lib/download';
+import { DOWNLOAD_LIMIT_MB, HAS_PIX, RESOLUTIONS, SITE, bestFittingResolution, maxPhotosFor, resolution, type ResolutionId } from '../config';
+import { buildZip, canShareFiles, downloadFile, fetchBytes, saveBlob, shareJpeg } from '../lib/download';
+import { photoFileName as fileName, zipFileName as zipName } from '../lib/files';
 import { photoUrl } from '../lib/manifest';
 import type { PhotoRef } from './types';
 
@@ -19,12 +20,8 @@ type Job =
 
 type ShareState = 'idle' | 'loading' | 'retry' | 'error';
 
-const fileName = (item: PhotoRef, res: ResolutionId) => `${FILE_PREFIX}-${item.photo.id}-${res}.jpg`;
-
-function zipName(items: PhotoRef[], res: ResolutionId) {
-  const dates = new Set(items.map((i) => i.album.date));
-  const label = dates.size === 1 ? [...dates][0] : 'fotos';
-  return `${FILE_PREFIX}-${label}-${res}.zip`;
+function formatMb(mb: number) {
+  return mb < 10 ? mb.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : Math.round(mb).toLocaleString('pt-BR');
 }
 
 function isAbort(err: unknown) {
@@ -40,10 +37,13 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
 
   const count = items.length;
-  const overLimit = count > MAX_PER_DOWNLOAD;
+  const max = maxPhotosFor(res);
+  const overLimit = count > max;
+  const fitting = overLimit ? bestFittingResolution(count) : null;
   const working = job.kind === 'working';
   const signature = `${items.map((i) => i.key).join('|')}#${res}`;
-  const resLabel = RESOLUTIONS.find((r) => r.id === res)!.label;
+  const resLabel = resolution(res).label;
+  const estimateMb = count * resolution(res).mb;
 
   useEffect(() => setShareSupported(canShareFiles()), []);
 
@@ -79,12 +79,10 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
     try {
       if (count === 1) {
         const item = items[0];
-        const bytes = await fetchBytes(photoUrl(item.album.id, item.photo.id, res), {
+        await downloadFile(photoUrl(item.album.id, item.photo.id, res), fileName(item, res), {
           signal: ctrl.signal,
-          onProgress: (loaded, total) =>
-            setJob({ kind: 'working', fraction: total ? loaded / total : 0, filesDone: 0, total: 1, zipping: false }),
+          onProgress: (fraction) => setJob({ kind: 'working', fraction, filesDone: 0, total: 1, zipping: false }),
         });
-        saveBlob(new Blob([bytes as BlobPart], { type: 'image/jpeg' }), fileName(item, res));
       } else {
         const multiAlbum = new Set(items.map((i) => i.album.id)).size > 1;
         const zip = await buildZip(
@@ -150,7 +148,10 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
   return (
     <div class="sel-bar" ref={barRef} role="region" aria-label="Fotos selecionadas">
       <div class="sel-summary">
-        <span class="sel-count">{count === 1 ? '1 foto selecionada' : `${count} fotos selecionadas`}</span>
+        <span class="sel-count">
+          {count === 1 ? '1 foto selecionada' : `${count} fotos selecionadas`}
+          <span class="sel-size"> · ≈ {formatMb(estimateMb)} MB</span>
+        </span>
         <button type="button" class="sel-clear" onClick={onClear} disabled={working}>
           Limpar seleção
         </button>
@@ -193,8 +194,9 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
 
       {overLimit && (
         <p id="sel-limit" class="sel-note sel-warn" role="alert">
-          Você selecionou {count} fotos. O limite é {MAX_PER_DOWNLOAD} por download: desmarque {count - MAX_PER_DOWNLOAD}{' '}
-          {count - MAX_PER_DOWNLOAD === 1 ? 'foto' : 'fotos'} ou baixe em partes.
+          Em {resLabel} cabem {max} fotos por download (até {DOWNLOAD_LIMIT_MB} MB). Desmarque {count - max}{' '}
+          {count - max === 1 ? 'foto' : 'fotos'}
+          {fitting ? ` ou escolha ${fitting.label}, onde cabem todas.` : ' ou baixe em partes.'}
         </p>
       )}
 

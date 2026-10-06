@@ -1,6 +1,6 @@
 # Galeria de fotos (carvalhovini.com)
 
-Site de galeria de fotos esportivas (foco em basquete) de um fotógrafo amador.
+Site de galeria de fotos de esporte (basquete, tênis e outros) de um fotógrafo amador.
 Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
 
 ## Objetivo do produto
@@ -21,7 +21,9 @@ Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
 - **Lista de fotos:** `manifest.json` na raiz do bucket. O site lê esse arquivo em tempo de
   execução, então publicar um jogo novo NÃO exige novo deploy.
 - **Download em lote:** feito no navegador (fetch dos arquivos + zip com `fflate`), sem servidor.
-  Foto única baixa direto. Limite sugerido de seleção: 40 fotos por download.
+  Foto única baixa direto. Limite por download: 150 MB estimados pela resolução
+  (4K ≈ 1 MB, 2K ≈ 0,5 MB, Full HD ≈ 0,3 MB, HD ≈ 0,15 MB por foto). O zip é montado em
+  fluxo, na ordem da galeria.
 - **Processamento e upload:** scripts Node.js (ESM) rodando localmente, com `sharp`.
 
 ## Estrutura do repositório
@@ -95,6 +97,7 @@ manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenc
       "id": "2026-09-27_nome-do-jogo",
       "date": "2026-09-27",
       "title": "Nome do jogo",
+      "cover": "IMG_0001",
       "photos": [
         { "id": "IMG_0001", "w": 4928, "h": 3264 }
       ]
@@ -105,6 +108,11 @@ manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenc
 
 As URLs são derivadas por convenção a partir de `albumId` e `photoId`, então o manifest
 não precisa repetir caminhos.
+
+Campos novos são sempre opcionais, para não quebrar manifests antigos. `cover` (opcional) é o
+`photoId` da capa do álbum; sem ele, ou se a foto não existir mais, a capa é a primeira foto.
+O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando a foto da capa
+é excluída.
 
 ## Upload
 
@@ -158,15 +166,30 @@ não precisa repetir caminhos.
 - Tokens do design: fundo `#121110`, superfície `#1B1A18`, texto `#F4F1EA`,
   texto secundário `#A8A194`/`#B9B2A5`, destaque laranja `#FF6A2B` (texto sobre ele `#121110`),
   bordas `#2E2A25`/`#3A352F`. Fontes: Big Shoulders Display (títulos) e DM Sans (corpo).
-- Funcionalidades: chips de filtro por data, grade de miniaturas (4 colunas desktop,
-  3 tablet, 2 celular), seleção múltipla com "Selecionar todas" por álbum, barra fixa de
-  download com escolha de resolução (4K, 2K, Full HD, HD), seção de apoio com Pix e Instagram.
+- Rótulo do site: "Fotos de esporte" (título da aba, descrição e hero).
+- Home: chips de filtro por data (`?data=AAAA-MM-DD`) e cartões de álbum (capa 4:3, título,
+  data por extenso, número de fotos), mais recentes primeiro. 3 colunas desktop, 2 tablet,
+  1 celular.
+- Página do álbum em `?album=ID`, com History API (voltar do navegador e link compartilhável
+  funcionam; a rolagem da home é restaurada). O topo (hero) fica escondido nessa tela.
+  Cabeçalho com Voltar, título, data, contagem e "Selecionar todas".
+- Grade do álbum: mosaico (4 colunas desktop, 3 tablet, 2 celular) com cada foto na coluna mais
+  curta pela proporção do manifest, calculado sobre o álbum inteiro, para carregar mais fotos
+  nunca reembaralhar as que já aparecem. Lotes de 36 via IntersectionObserver, contador
+  "Mostrando X de N" e botão "Carregar mais". Tiles com `content-visibility: auto`.
+- Seleção guardada por álbum (trocar de álbum não perde). "Selecionar todas" respeita o
+  limite da resolução escolhida e avisa quantas cabem. Barra fixa de download com escolha
+  de resolução (4K, 2K, Full HD, HD) e aviso quando passa do limite.
+- Visualizador: deslizar no celular, setas e Esc no teclado, pré-carrega as vizinhas, e tem
+  botões de anterior, selecionar, baixar a foto atual e próxima.
+- Seção de apoio com Pix e Instagram.
 - Os textos do hero (título e subtítulo) ainda não estão definidos: usar placeholders e
   deixar fácil de trocar num único lugar.
 - Chave Pix: ler de uma constante de configuração, nunca espalhar pelo código.
 - Acessibilidade: usar `<button>` e `<a>` reais, `aria-pressed` nos itens selecionáveis,
   alvos de toque com no mínimo 44 px, contraste adequado.
-- Imagens da grade com `loading="lazy"` e dimensões reservadas para evitar salto de layout.
+- Imagens da grade com `loading="lazy"`, `decoding="async"` e dimensões reservadas para evitar
+  salto de layout. Só a primeira dobra usa carregamento imediato com prioridade alta.
 
 ## Regras gerais
 

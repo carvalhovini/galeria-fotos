@@ -149,6 +149,7 @@ async function updateManifest(albums, ctx) {
       const existing = manifest.albums.find((a) => a.id === album.id);
       const { title, source } = resolveTitle(album, existing);
       const entry = { id: album.entry.id, date: album.entry.date, title, photos: album.entry.photos };
+      if (existing?.cover && entry.photos.some((p) => p.id === existing.cover)) entry.cover = existing.cover;
       entries.push(entry);
       let action;
       if (!existing) {

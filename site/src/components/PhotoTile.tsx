@@ -6,21 +6,23 @@ interface Props {
   selected: boolean;
   onToggle: (key: string) => void;
   onZoom: (key: string) => void;
+  priority?: boolean;
 }
 
-export default function PhotoTile({ item, selected, onToggle, onZoom }: Props) {
+export default function PhotoTile({ item, selected, onToggle, onZoom, priority = false }: Props) {
   const { album, photo, n, key } = item;
   const thumb = scaledSize(photo, 900);
   const name = `Foto ${n}${album.title ? ` de ${album.title}` : ''}`;
 
   return (
-    <div class={`tile${selected ? ' is-selected' : ''}`} style={{ aspectRatio: `${photo.w} / ${photo.h}` }}>
+    <div class={`tile${selected ? ' is-selected' : ''}`} data-key={key} style={{ aspectRatio: `${photo.w} / ${photo.h}` }}>
       <button type="button" class="tile-select" aria-pressed={selected} aria-label={name} onClick={() => onToggle(key)}>
         <img
           src={photoUrl(album.id, photo.id, 'thumb')}
           width={thumb.w}
           height={thumb.h}
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchpriority={priority ? 'high' : undefined}
           decoding="async"
           alt=""
         />

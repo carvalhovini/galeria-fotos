@@ -111,6 +111,7 @@ export async function deletePhotos(env: Env, albumId: string, body: Record<strin
     removed = album.photos.filter((p) => wanted.has(p.id)).map((p) => p.id);
     if (removed.length === 0) throw new HttpError(404, 'Essas fotos não estão mais no álbum. Recarregue a página.');
     album.photos = album.photos.filter((p) => !wanted.has(p.id));
+    if (album.cover && wanted.has(album.cover)) delete album.cover;
     remaining = album.photos.length > 0 ? album : null;
     if (!remaining) m.albums = m.albums.filter((a) => a.id !== albumId);
   });

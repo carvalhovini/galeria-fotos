@@ -78,7 +78,13 @@ upload termina, sem novo build. Por padrão usa `https://fotos.carvalhovini.com`
 para outro lugar, crie `site/.env` com `PUBLIC_R2_BASE_URL` (veja `site/.env.example`).
 
 Textos do topo, link do Instagram e chave Pix ficam em `site/src/config.ts`. Enquanto a chave
-for `[SUA-CHAVE-PIX]`, o cartão do Pix não aparece.
+for `[SUA-CHAVE-PIX]`, o cartão do Pix não aparece. No mesmo arquivo ficam o limite de um
+download (`DOWNLOAD_LIMIT_MB`, hoje 150 MB), o tamanho estimado de cada resolução e o tamanho
+do lote de fotos (36).
+
+A home lista os álbuns em cartões; cada álbum abre em `?album={albumId}`, um link que pode ser
+compartilhado. Para escolher a capa de um álbum, adicione `"cover": "{photoId}"` ao álbum no
+`manifest.json`; sem isso, a capa é a primeira foto. O upload mantém essa capa ao reenviar.
 
 O bucket precisa de uma regra de CORS liberando GET para as origens do site (o domínio
 final e `http://localhost:4321` em desenvolvimento), senão o manifest e os downloads falham.

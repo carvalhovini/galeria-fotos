@@ -11,6 +11,8 @@ export interface Album {
   date: string;
   title: string;
   photos: Photo[];
+  // Opcional no manifest: id da foto de capa. Sem ele, a capa é a primeira foto.
+  cover?: string;
 }
 
 export interface Manifest {
@@ -33,7 +35,12 @@ function toAlbum(a: unknown): Album | null {
   if (!o || typeof o.id !== 'string' || !ID_RE.test(o.id) || !DATE_RE.test(o.date ?? '')) return null;
   const photos = Array.isArray(o.photos) ? o.photos.filter(isPhoto) : [];
   if (photos.length === 0) return null;
-  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos };
+  const cover = typeof o.cover === 'string' && photos.some((p) => p.id === o.cover) ? o.cover : undefined;
+  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos, cover };
+}
+
+export function coverPhoto(album: Album): Photo {
+  return album.photos.find((p) => p.id === album.cover) ?? album.photos[0];
 }
 
 export async function loadManifest(signal?: AbortSignal): Promise<Manifest> {
@@ -61,8 +68,20 @@ export function scaledSize(photo: Photo, maxSide: number): { w: number; h: numbe
 
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
+const MONTHS_LONG = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
 export function formatDate(date: string, withYear = true): string {
   const [y, m, d] = date.split('-').map(Number);
   const base = `${d} ${MONTHS[m - 1]}`;
   return withYear ? `${base} ${y}` : base;
+}
+
+// "4 de outubro de 2026"
+export function formatDateLong(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return `${d} de ${MONTHS_LONG[m - 1]} de ${y}`;
+}
+
+export function photoCount(n: number): string {
+  return n === 1 ? '1 foto' : `${n.toLocaleString('pt-BR')} fotos`;
 }

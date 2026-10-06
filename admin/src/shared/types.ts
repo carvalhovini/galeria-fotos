@@ -9,6 +9,7 @@ export interface Album {
   date: string;
   title: string;
   photos: Photo[];
+  cover?: string;
 }
 
 export interface Manifest {

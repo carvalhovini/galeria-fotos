@@ -1,68 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
-import type { ResolutionId } from '../config';
-import { formatDate, loadManifest, type Album } from '../lib/manifest';
-import Lightbox from './Lightbox';
-import PhotoTile from './PhotoTile';
-import SelectionBar from './SelectionBar';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { SITE, type ResolutionId } from '../config';
+import { formatDateLong, loadManifest, type Album } from '../lib/manifest';
+import AlbumCards from './AlbumCards';
+import AlbumView from './AlbumView';
 import { photoKey, type PhotoRef } from './types';
 
 type Status = 'loading' | 'error' | 'ready';
 
 const ALL = 'all';
-const MOBILE_QUERY = '(max-width: 560px)';
-const TABLET_QUERY = '(max-width: 900px)';
+const EMPTY = new Set<string>();
 
-function currentColumns() {
-  if (typeof window === 'undefined') return 4;
-  if (window.matchMedia(MOBILE_QUERY).matches) return 2;
-  if (window.matchMedia(TABLET_QUERY).matches) return 3;
-  return 4;
+function readParam(name: string): string | null {
+  return typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get(name);
 }
 
-function useColumns() {
-  const [columns, setColumns] = useState(currentColumns);
-  useEffect(() => {
-    const queries = [MOBILE_QUERY, TABLET_QUERY].map((q) => window.matchMedia(q));
-    const update = () => setColumns(currentColumns());
-    queries.forEach((q) => q.addEventListener('change', update));
-    update();
-    return () => queries.forEach((q) => q.removeEventListener('change', update));
-  }, []);
-  return columns;
-}
-
-// Cada foto vai para a coluna mais baixa, preservando a ordem aproximada de leitura.
-function distribute(items: PhotoRef[], columns: number): PhotoRef[][] {
-  const cols = Array.from({ length: columns }, () => ({ height: 0, items: [] as PhotoRef[] }));
-  for (const item of items) {
-    let target = cols[0];
-    for (const col of cols) if (col.height < target.height - 0.001) target = col;
-    target.items.push(item);
-    target.height += item.photo.h / item.photo.w + 0.06;
-  }
-  return cols.map((c) => c.items);
-}
-
-function readDateParam() {
-  return new URLSearchParams(window.location.search).get('data');
-}
-
-function writeDateParam(date: string) {
-  const url = new URL(window.location.href);
-  if (date === ALL) url.searchParams.delete('data');
-  else url.searchParams.set('data', date);
-  window.history.replaceState(null, '', url);
+function homeHref(filter: string) {
+  return filter === ALL ? '/' : `/?data=${encodeURIComponent(filter)}`;
 }
 
 export default function Gallery() {
   const [status, setStatus] = useState<Status>('loading');
   const [albums, setAlbums] = useState<Album[]>([]);
   const [attempt, setAttempt] = useState(0);
-  const [filter, setFilter] = useState(ALL);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [albumId, setAlbumId] = useState<string | null>(() => readParam('album'));
+  const [filter, setFilter] = useState(() => readParam('data') ?? ALL);
+  const [selections, setSelections] = useState<Record<string, Set<string>>>({});
   const [res, setRes] = useState<ResolutionId>('4k');
-  const [viewer, setViewer] = useState<number | null>(null);
-  const columns = useColumns();
+  const albumIdRef = useRef(albumId);
+  const pendingScroll = useRef<number | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -70,8 +35,6 @@ export default function Gallery() {
     loadManifest(ctrl.signal)
       .then((manifest) => {
         setAlbums(manifest.albums);
-        const wanted = readDateParam();
-        setFilter(wanted && manifest.albums.some((a) => a.date === wanted) ? wanted : ALL);
         setStatus('ready');
       })
       .catch((err) => {
@@ -80,67 +43,71 @@ export default function Gallery() {
     return () => ctrl.abort();
   }, [attempt]);
 
-  const refsByAlbum = useMemo(() => {
-    const map = new Map<string, PhotoRef[]>();
-    for (const album of albums) {
-      map.set(
-        album.id,
-        album.photos.map((photo, i) => ({ key: photoKey(album.id, photo.id), album, photo, n: i + 1 })),
-      );
-    }
-    return map;
-  }, [albums]);
+  useEffect(() => {
+    history.scrollRestoration = 'manual';
+    const onPop = (e: PopStateEvent) => {
+      const id = readParam('album');
+      // Navegação por âncora (#apoie) também dispara popstate: só reage se o álbum mudou.
+      if (id === albumIdRef.current) return;
+      pendingScroll.current = id ? 0 : (e.state?.scrollY ?? 0);
+      setFilter(readParam('data') ?? ALL);
+      setAlbumId(id);
+    };
+    addEventListener('popstate', onPop);
+    return () => removeEventListener('popstate', onPop);
+  }, []);
 
-  const allRefs = useMemo(() => [...refsByAlbum.values()].flat(), [refsByAlbum]);
+  // Precisa rodar antes de restaurar a rolagem: o topo aparece ou some conforme a tela.
+  useLayoutEffect(() => {
+    albumIdRef.current = albumId;
+    document.documentElement.dataset.view = albumId ? 'album' : 'home';
+  }, [albumId]);
+
+  const album = albumId ? albums.find((a) => a.id === albumId) : undefined;
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    document.title = album ? `${album.title || formatDateLong(album.date)} | ${SITE.name}` : SITE.title;
+  }, [album, status]);
+
+  useLayoutEffect(() => {
+    if (status !== 'ready' || pendingScroll.current === null) return;
+    window.scrollTo(0, pendingScroll.current);
+    pendingScroll.current = null;
+  }, [albumId, status]);
 
   const dates = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const album of albums) counts.set(album.date, (counts.get(album.date) ?? 0) + album.photos.length);
+    for (const a of albums) counts.set(a.date, (counts.get(a.date) ?? 0) + a.photos.length);
     return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [albums]);
+  const activeFilter = dates.some(([d]) => d === filter) ? filter : ALL;
 
-  const multiYear = new Set(dates.map(([d]) => d.slice(0, 4))).size > 1;
-  const visibleAlbums = useMemo(
-    () => (filter === ALL ? albums : albums.filter((a) => a.date === filter)),
-    [albums, filter],
+  const refs = useMemo<PhotoRef[]>(
+    () => (album ? album.photos.map((photo, i) => ({ key: photoKey(album.id, photo.id), album, photo, n: i + 1 })) : []),
+    [album],
   );
-  const visibleRefs = useMemo(
-    () => visibleAlbums.flatMap((a) => refsByAlbum.get(a.id) ?? []),
-    [visibleAlbums, refsByAlbum],
-  );
-  const selectedRefs = useMemo(() => allRefs.filter((r) => selected.has(r.key)), [allRefs, selected]);
 
-  const toggle = useCallback((key: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  const toggleAlbum = (refs: PhotoRef[], allOn: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const r of refs) {
-        if (allOn) next.delete(r.key);
-        else next.add(r.key);
-      }
-      return next;
-    });
+  const openAlbum = (id: string) => {
+    history.replaceState({ ...history.state, scrollY: window.scrollY }, '');
+    history.pushState({ album: id, fromHome: true }, '', `?album=${encodeURIComponent(id)}`);
+    pendingScroll.current = 0;
+    setAlbumId(id);
   };
 
-  const zoom = useCallback(
-    (key: string) => {
-      const index = visibleRefs.findIndex((r) => r.key === key);
-      if (index >= 0) setViewer(index);
-    },
-    [visibleRefs],
-  );
+  const goHome = () => {
+    if (history.state?.fromHome) {
+      history.back();
+      return;
+    }
+    history.pushState({}, '', homeHref(activeFilter));
+    pendingScroll.current = 0;
+    setAlbumId(null);
+  };
 
   const pickFilter = (date: string) => {
     setFilter(date);
-    writeDateParam(date);
+    history.replaceState(history.state, '', homeHref(date));
   };
 
   if (status === 'loading') {
@@ -170,71 +137,42 @@ export default function Gallery() {
     );
   }
 
-  const total = albums.reduce((sum, a) => sum + a.photos.length, 0);
+  if (albumId && !album) {
+    return (
+      <div class="gallery-state" role="alert">
+        <p>Álbum não encontrado. Ele pode ter sido removido.</p>
+        <a class="btn-outline" href="/" onClick={(e) => (e.preventDefault(), goHome())}>
+          Ver todos os álbuns
+        </a>
+      </div>
+    );
+  }
+
+  if (album) {
+    return (
+      <AlbumView
+        key={album.id}
+        album={album}
+        refs={refs}
+        selected={selections[album.id] ?? EMPTY}
+        res={res}
+        homeHref={homeHref(activeFilter)}
+        onRes={setRes}
+        onSelectionChange={(next) => setSelections((prev) => ({ ...prev, [album.id]: next }))}
+        onBack={goHome}
+      />
+    );
+  }
 
   return (
-    <>
-      <section class="filters container" aria-label="Filtrar por data">
-        <p class="filters-label">Filtrar por data</p>
-        <div class="chips">
-          <button type="button" class="chip" aria-pressed={filter === ALL} onClick={() => pickFilter(ALL)}>
-            Todas <span class="chip-count">{total}</span>
-          </button>
-          {dates.map(([date, count]) => (
-            <button type="button" key={date} class="chip" aria-pressed={filter === date} onClick={() => pickFilter(date)}>
-              {formatDate(date, multiYear)} <span class="chip-count">{count}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <main class="albums container" id="fotos">
-        {visibleAlbums.map((album) => {
-          const refs = refsByAlbum.get(album.id) ?? [];
-          const allOn = refs.length > 0 && refs.every((r) => selected.has(r.key));
-          const countText = refs.length === 1 ? '1 foto' : `${refs.length} fotos`;
-          return (
-            <section class="album" key={album.id} aria-labelledby={`album-${album.id}`}>
-              <div class="album-head">
-                <div>
-                  <h2 id={`album-${album.id}`}>{formatDate(album.date)}</h2>
-                  <p class="album-sub">
-                    {album.title ? `${album.title} · ` : ''}
-                    {countText}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  class="btn-outline"
-                  aria-label={`${allOn ? 'Desmarcar todas' : 'Selecionar todas'} as fotos de ${album.title || formatDate(album.date)}`}
-                  onClick={() => toggleAlbum(refs, allOn)}
-                >
-                  {allOn ? 'Desmarcar todas' : 'Selecionar todas'}
-                </button>
-              </div>
-              <div class="masonry">
-                {distribute(refs, columns).map((col, i) => (
-                  <div class="masonry-col" key={i}>
-                    {col.map((item) => (
-                      <PhotoTile key={item.key} item={item} selected={selected.has(item.key)} onToggle={toggle} onZoom={zoom} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </main>
-
-      <SelectionBar items={selectedRefs} res={res} onRes={setRes} onClear={() => setSelected(new Set())} />
-
-      <Lightbox
-        items={visibleRefs}
-        index={viewer}
-        onIndex={setViewer}
-        isSelected={(key) => selected.has(key)}
-        onToggle={toggle}
-      />
-    </>
+    <AlbumCards
+      albums={albums}
+      dates={dates}
+      filter={activeFilter}
+      allValue={ALL}
+      selectedCount={(id) => selections[id]?.size ?? 0}
+      onFilter={pickFilter}
+      onOpen={openAlbum}
+    />
   );
 }
