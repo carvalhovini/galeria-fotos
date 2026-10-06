@@ -24,8 +24,8 @@
   // Secrets (wrangler secret put): CF_API_TOKEN, CF_ZONE_ID e GITHUB_TOKEN.
   "vars": {
     "PUBLIC_R2_BASE_URL": "https://fotos.carvalhovini.com",
-    "ACCESS_TEAM_DOMAIN": "https://[SEU-TIME].cloudflareaccess.com",
-    "ACCESS_AUD": "[AUD-DO-APP-NO-ACCESS]",
+    "ACCESS_TEAM_DOMAIN": "https://muddy-dream-a089.cloudflareaccess.com",
+    "ACCESS_AUD": "f41f50a36ed851014e5a692e424b531e5907c000770b9b70b865ac3624c2b0cb",
     "PURGE_ORIGINS": "https://carvalhovini.com,https://www.carvalhovini.com,https://galeria-fotos.carvalhovini2002.workers.dev",
     "GITHUB_REPO": "carvalhovini/galeria-fotos",
     "GITHUB_WORKFLOW": "publish.yml",
