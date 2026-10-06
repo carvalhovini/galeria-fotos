@@ -25,6 +25,9 @@ Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
   (4K ≈ 1 MB, 2K ≈ 0,5 MB, Full HD ≈ 0,3 MB, HD ≈ 0,15 MB por foto). O zip é montado em
   fluxo, na ordem da galeria.
 - **Processamento e upload:** scripts Node.js (ESM) rodando localmente, com `sharp`.
+- **Envio pelo celular:** o gerenciador grava as fotos originais no bucket privado
+  `galeria-entrada`; o workflow `.github/workflows/publish.yml` (GitHub Actions) roda os mesmos
+  scripts e publica.
 
 ## Estrutura do repositório
 
@@ -41,6 +44,7 @@ galeria-fotos/
   site/                 # projeto Astro
   admin/                # gerenciador (Worker + interface Preact), projeto separado
   design/               # referências visuais (HTML do design desktop e celular)
+  .github/workflows/    # publish.yml: publicação disparada pelo gerenciador
 ```
 
 ## Convenções de pastas dos originais
@@ -87,6 +91,14 @@ manifest.json
 manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenciador antes de cada alteração
 ```
 
+Bucket privado de entrada (`galeria-entrada`, sem domínio público):
+
+```
+{albumId}/{photoId}.jpg     # original enviado pelo celular, sem alteração
+{albumId}/_album.json       # { title, date }; título também em customMetadata (URI-encoded)
+_publishing.json            # marcador gravado ao disparar a publicação
+```
+
 ### Formato do manifest.json
 
 ```json
@@ -99,7 +111,7 @@ manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenc
       "title": "Nome do jogo",
       "cover": "IMG_0001",
       "photos": [
-        { "id": "IMG_0001", "w": 4928, "h": 3264 }
+        { "id": "IMG_0001", "w": 4928, "h": 3264, "t": "2026-09-27T15:04:05.120" }
       ]
     }
   ]
@@ -112,7 +124,8 @@ não precisa repetir caminhos.
 Campos novos são sempre opcionais, para não quebrar manifests antigos. `cover` (opcional) é o
 `photoId` da capa do álbum; sem ele, ou se a foto não existir mais, a capa é a primeira foto.
 O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando a foto da capa
-é excluída.
+é excluída. `t` (opcional) é o horário EXIF da foto como texto local sem fuso
+(`AAAA-MM-DDTHH:mm:ss.SSS`), igual em qualquer máquina; serve só para ordenar.
 
 ## Upload
 
@@ -125,13 +138,21 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   manifest (pode ter sido renomeado no gerenciador); álbum novo usa o nome da pasta.
 - O `manifest.json` é gravado com escrita condicional (`If-Match` com o ETag lido, ou
   `If-None-Match: *` se não existir). Em conflito (412), ler de novo e refazer a mesclagem.
+- O álbum é unido ao publicado por id de foto: fotos existentes ficam com a entrada antiga
+  (só ganham `t` se não tinham), novas entram; título e capa são preservados. `--overwrite`
+  substitui as entradas repetidas. Se todas as fotos têm `t`, ordenar por `t`; senão as novas
+  vão para o fim. Assim o workflow publica só as fotos novas sem apagar as antigas.
+- `scripts/inbox.js pull {albumId}` baixa a entrada para `originals/{albumId}/` e cria o
+  `titulo.txt` só para álbum novo; `clean` apaga da entrada só as chaves que o `pull` baixou
+  (lista em `output/inbox/`). Usa `R2_INBOX_BUCKET`.
 
 ## Gerenciador (admin/)
 
 - Worker em TypeScript com assets estáticos (interface Preact, mesmo visual do site, celular
   primeiro). Projeto separado com `admin/wrangler.jsonc`: nome `galeria-admin`, domínio
   `admin.carvalhovini.com`, `workers_dev` e `preview_urls` desligados.
-- O Worker roda antes dos assets só em `/api/*`. Bucket via binding R2 `BUCKET`.
+- O Worker roda antes dos assets só em `/api/*`. Buckets via bindings R2 `BUCKET`
+  (`galeria-fotos`) e `INBOX` (`galeria-entrada`).
 - Segurança:
   - O domínio fica atrás do Cloudflare Access. Toda rota `/api` valida o JWT do cabeçalho
     `Cf-Access-Jwt-Assertion` (assinatura RS256 contra `{ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`
@@ -142,11 +163,16 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   - Nunca registrar token, JWT ou secrets nos logs; só rota, status e códigos de erro.
   - Nada de modo de contorno da autenticação no código. Testes locais usam `admin/dev/`
     (chaves de teste e proxy que injeta o JWT), que nunca vai para produção.
-- Configuração: vars `PUBLIC_R2_BASE_URL`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `PURGE_ORIGINS`;
-  secrets `CF_API_TOKEN` (permissão só Zone > Cache Purge na zona) e `CF_ZONE_ID`.
+- Configuração: vars `PUBLIC_R2_BASE_URL`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `PURGE_ORIGINS`,
+  `GITHUB_REPO`, `GITHUB_WORKFLOW`, `GITHUB_REF`; secrets `CF_API_TOKEN` (permissão só
+  Zone > Cache Purge na zona), `CF_ZONE_ID` e `GITHUB_TOKEN` (fine-grained, só este repositório,
+  Actions: Read and write).
 - API: `GET /api/albums`, `PATCH /api/albums/:id` (título), `POST /api/albums/:id/delete-photos`,
   `DELETE /api/albums/:id` (exige `confirmTitle` igual ao título), `POST /api/purge`
-  (só URLs de `albums/` ou o `manifest.json` do domínio público).
+  (só URLs de `albums/` ou o `manifest.json` do domínio público), `GET /api/inbox`,
+  `GET|DELETE /api/upload/:id` (listar para retomar / descartar), `PUT /api/upload/:id/_album.json`
+  (título), `PUT /api/upload/:id/:arquivo` (foto), `GET /api/publish` (andamento) e
+  `POST /api/publish/:id`.
 - Toda alteração do manifest: ler com ETag, aplicar numa cópia, gravar o anterior em
   `manifest-backups/`, gravar com `onlyIf: { etagMatches }` e repetir do zero em conflito
   (até 5 vezes). Só depois apagar os arquivos, para o site nunca listar foto já apagada.
@@ -158,6 +184,20 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   com o `manifest.json`. O Worker faz até 20 chamadas por requisição (plano Free: 50
   subrequisições) e devolve o resto como pendente; a interface continua via `/api/purge`.
   Falha de purge aparece na tela com botão para tentar de novo.
+- Envio de fotos: `PUT` com o corpo da foto gravado em fluxo no `INBOX` (exige Content-Length,
+  máximo 50 MB). Só `.jpg`/`.jpeg`, nome sanitizado como no `process`, e os primeiros bytes
+  conferidos (`FF D8 FF`) depois de gravar. 409 se o álbum não tem `_album.json` ou se a foto
+  já está publicada. O `albumId` é `AAAA-MM-DD_slug`, gerado pela data e pelo título.
+- Interface de envio: até 3 envios simultâneos, progresso por foto e geral, novas tentativas
+  automáticas, "Reenviar as que falharam", retomada pela listagem do servidor (mesmo nome e
+  tamanho são pulados), Wake Lock com aviso quando não há suporte, aviso de não sair da página
+  e um painel de diagnóstico (dimensões e EXIF de cada arquivo, para conferir o iOS).
+- Publicar: `workflow_dispatch` com entrada `albumId` pela API do GitHub; o andamento vem da
+  execução mais recente do workflow (passos do job). O workflow tem `concurrency` para nunca
+  rodar duas publicações juntas e apaga da entrada só o que baixou, ao terminar com sucesso.
+- Bloqueio: enquanto houver execução na fila ou rodando (ou nos 3 minutos depois de disparar,
+  pelo marcador), envio, criação de álbum, descarte, exclusões e nova publicação respondem 409.
+  Se o GitHub não responder, o bloqueio fica ligado. O token do GitHub nunca vai para logs.
 
 ## Site (site/)
 

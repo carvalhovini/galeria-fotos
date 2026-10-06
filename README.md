@@ -55,6 +55,12 @@ npm run upload -- 2026-09-27_final-estadual
 - Só depois de todas as fotos do álbum subirem sem erro, atualiza o `manifest.json` do bucket.
   Uma cópia do manifest anterior fica em `output/manifest-backups/`. Se o gerenciador alterar
   o manifest no meio do upload, o script percebe (ETag), lê de novo e refaz a atualização.
+- O álbum é **unido** ao que já está publicado, foto a foto pelo id: fotos novas entram, as
+  que já estavam continuam (mesmo que não estejam em `originals/` agora), e título e capa são
+  mantidos. Com `--overwrite`, a entrada das fotos repetidas é substituída.
+- Cada foto nova leva no manifest o horário EXIF (`t`). Quando todas as fotos do álbum têm `t`,
+  o álbum fica em ordem de horário, então fotos enviadas depois são intercaladas. Álbuns
+  publicados antes disso (sem `t`) recebem as fotos novas no fim.
 - Publicar um jogo novo não exige novo deploy do site.
 
 ## Site
@@ -92,9 +98,9 @@ final e `http://localhost:4321` em desenvolvimento), senão o manifest e os down
 ## Gerenciador (admin.carvalhovini.com)
 
 Projeto separado em `admin/`: um Worker com a API e uma interface leve para renomear álbuns,
-excluir fotos e excluir álbuns inteiros. Cada alteração guarda uma cópia do manifest anterior
-em `manifest-backups/` no bucket e, depois de excluir, limpa o cache da Cloudflare das URLs
-removidas.
+excluir fotos, excluir álbuns inteiros e enviar fotos pelo celular. Cada alteração guarda uma
+cópia do manifest anterior em `manifest-backups/` no bucket e, depois de excluir, limpa o
+cache da Cloudflare das URLs removidas.
 
 ### Rodar localmente
 
@@ -110,8 +116,11 @@ npm run dev:access    # em outro terminal: Access e purge falsos
 ```
 
 Abra **http://127.0.0.1:8790**: é um proxy que injeta um JWT de teste, como o Access faz em
-produção. O endereço 8787 direto responde 401, de propósito. Com os dois rodando,
-`npm run test:local` testa a API (autenticação, exclusões, conflitos e purge).
+produção. O endereço 8787 direto responde 401, de propósito. O `dev:access` também simula a
+API do GitHub (disparo e andamento do workflow), então dá para testar envio e publicação.
+Com os dois rodando, `npm run test:local` testa a API (autenticação, exclusões, conflitos,
+purge, envio, publicação e bloqueios). Ele altera o R2 simulado: rode o `seed:local` de novo
+(com o `wrangler dev` parado) antes de repetir.
 
 ### Configurar o Cloudflare Access (antes do primeiro deploy)
 
@@ -154,6 +163,83 @@ curl -sI -H "Origin: https://www.carvalhovini.com" "https://fotos.carvalhovini.c
 ```
 
 Os dois devem responder 404.
+
+### Envio pelo celular e publicação
+
+No gerenciador, **Novo álbum** pede a data e o título (com acentos) e abre a escolha de fotos;
+dentro de um álbum publicado, **Adicionar fotos** faz o mesmo para juntar fotos a ele. As fotos
+vão, sem alteração, para o bucket privado `galeria-entrada`. **Publicar** dispara o workflow
+`.github/workflows/publish.yml`, que baixa as fotos da entrada, roda `process` e `upload`
+(com a união descrita acima) e, se tudo der certo, apaga da entrada só o que baixou.
+
+- Só `.jpg` e `.jpeg`, até 50 MB cada. O nome é limpo como no `process` (`IMG 0001.JPG` vira
+  `IMG-0001.jpg`); nomes repetidos ganham `-2`, `-3`.
+- Até 3 envios ao mesmo tempo, com nova tentativa automática e o botão **Reenviar as que
+  falharam**.
+- Para retomar depois de sair da página, abra **Continuar envio** e escolha as mesmas fotos:
+  as que já estão na entrada (mesmo nome e tamanho) são puladas.
+- A tela fica acesa durante o envio onde o navegador permite (Wake Lock: Safari 16.4 ou mais
+  novo, Chrome no Android). Sem suporte, aparece um aviso.
+- Enquanto uma publicação estiver na fila ou rodando, novos envios e exclusões ficam
+  bloqueados. Se o GitHub não responder, o bloqueio continua por segurança.
+
+#### Configurar (uma vez)
+
+1. Crie o bucket de entrada (privado, sem domínio público):
+
+   ```sh
+   npx wrangler r2 bucket create galeria-entrada
+   ```
+
+2. No GitHub, crie um token **fine-grained** em **Settings > Developer settings > Personal
+   access tokens > Fine-grained tokens**, limitado ao repositório `galeria-fotos`, com a
+   permissão **Actions: Read and write** (o resto fica sem acesso). Grave no gerenciador:
+
+   ```sh
+   cd admin
+   npx wrangler secret put GITHUB_TOKEN
+   ```
+
+   Repositório, workflow e branch ficam nas vars `GITHUB_REPO`, `GITHUB_WORKFLOW` e
+   `GITHUB_REF` de `admin/wrangler.jsonc`.
+3. Crie uma chave de API do R2 com **Object Read & Write** nos dois buckets (`galeria-fotos` e
+   `galeria-entrada`). No repositório do GitHub, em **Settings > Secrets and variables >
+   Actions**, cadastre:
+   - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+   - **Variables:** `R2_BUCKET` (`galeria-fotos`), `R2_INBOX_BUCKET` (`galeria-entrada`),
+     `R2_PUBLIC_BASE_URL` (`https://fotos.carvalhovini.com`)
+4. O workflow só existe para o GitHub depois que o arquivo estiver no branch `main` do
+   repositório remoto (push).
+
+Para publicar pelo computador o que está na entrada, sem o GitHub:
+
+```sh
+npm run inbox -- pull 2026-09-27_final-estadual    # baixa para originals/ e cria o titulo.txt se o álbum for novo
+npm run process -- originals/2026-09-27_final-estadual
+npm run upload -- 2026-09-27_final-estadual
+npm run inbox -- clean 2026-09-27_final-estadual   # apaga da entrada só o que o pull baixou
+```
+
+Isso exige `R2_INBOX_BUCKET` no `.env` e uma chave com acesso aos dois buckets.
+
+#### iPhone: as fotos chegam originais?
+
+Pelo código do WebKit (Safari e todos os navegadores do iOS), o seletor de fotos se comporta
+assim com este campo, que aceita só JPEG:
+
+- **Fotos da galeria em JPEG** (câmeras, fotos recebidas): chegam como estão, no tamanho
+  original e com EXIF.
+- **Fotos da galeria em HEIC** (câmera do iPhone no formato padrão "Alta eficiência"): o iOS
+  converte para JPEG antes de entregar. A resolução se mantém, mas a imagem é recomprimida.
+- **"Tirar foto" direto do seletor:** vira `image.jpg`, recomprimida e **sem EXIF** (sem data).
+  Prefira escolher da galeria.
+- O tamanho original não é reduzido pelo navegador. Ao escolher pelo app Arquivos, o arquivo vai
+  sem nenhuma alteração.
+
+Isso ainda precisa ser confirmado num iPhone de verdade. Para conferir: envie algumas fotos e
+abra **Conferir se o celular mandou as fotos originais**, no fim da tela de envio. A tabela
+mostra tamanho, dimensões e data EXIF de cada arquivo como o navegador entregou; compare com
+as informações da foto no app Fotos (deslize para cima na foto).
 
 ### Deploy
 
