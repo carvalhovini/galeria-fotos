@@ -6,13 +6,24 @@ interface Props {
   confirmLabel: string;
   confirmDisabled?: boolean;
   busy?: boolean;
+  busyLabel?: string;
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
   children: ComponentChildren;
 }
 
-export default function ConfirmDialog({ title, confirmLabel, confirmDisabled, busy, error, onConfirm, onCancel, children }: Props) {
+export default function ConfirmDialog({
+  title,
+  confirmLabel,
+  confirmDisabled,
+  busy,
+  busyLabel = 'Excluindo…',
+  error,
+  onConfirm,
+  onCancel,
+  children,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -50,7 +61,7 @@ export default function ConfirmDialog({ title, confirmLabel, confirmDisabled, bu
             Cancelar
           </button>
           <button type="submit" class="btn-danger" disabled={confirmDisabled || busy}>
-            {busy ? 'Excluindo…' : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </form>

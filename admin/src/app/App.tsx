@@ -1,25 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { Album, AlbumsResponse, DeleteResponse } from '../shared/types';
+import type { Album, AlbumsResponse, DeleteResponse, InboxAlbum, PublishStatus } from '../shared/types';
 import AlbumList from './AlbumList';
 import AlbumView from './AlbumView';
 import { api, finishPurge } from './api';
 import { plural } from './format';
 import Notices, { type Notice } from './Notices';
+import PublishPanel from './PublishPanel';
+import UploadView from './UploadView';
 
 const PUBLIC_SITE = 'https://carvalhovini.com';
+const POLL_BUSY_MS = 5000;
+const POLL_IDLE_MS = 30000;
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Algo deu errado. Tente de novo.');
-const albumFromUrl = () => new URLSearchParams(location.search).get('album');
+
+interface Route {
+  album: string | null;
+  upload: string | null;
+}
+
+function routeFromUrl(): Route {
+  const params = new URLSearchParams(location.search);
+  return { album: params.get('album'), upload: params.get('enviar') };
+}
 
 export default function App() {
   const [data, setData] = useState<AlbumsResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [albumId, setAlbumId] = useState<string | null>(albumFromUrl);
+  const [route, setRoute] = useState<Route>(routeFromUrl);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [notices, setNotices] = useState<Notice[]>([]);
   const [retrying, setRetrying] = useState<number | null>(null);
+  const [publish, setPublish] = useState<PublishStatus | null>(null);
+  const [inbox, setInbox] = useState<InboxAlbum[]>([]);
   const nextId = useRef(1);
+  const wasBusy = useRef(false);
+  const albumId = route.album;
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -30,21 +47,72 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-    const onPop = () => setAlbumId(albumFromUrl());
-    addEventListener('popstate', onPop);
-    return () => removeEventListener('popstate', onPop);
-  }, [load]);
-
-  const navigate = (id: string | null) => {
-    history.pushState(null, '', id ? `?album=${encodeURIComponent(id)}` : location.pathname);
-    setAlbumId(id);
-    scrollTo(0, 0);
-  };
+  const loadInbox = useCallback(async () => {
+    try {
+      setInbox((await api.inbox()).albums);
+    } catch {
+      // a lista de envios é secundária; o erro aparece ao tentar agir
+    }
+  }, []);
 
   const notify = (kind: Notice['kind'], text: string, retryUrls?: string[]) =>
     setNotices((list) => [{ id: nextId.current++, kind, text, retryUrls }, ...list].slice(0, 5));
+
+  const applyPublish = (s: PublishStatus) => {
+    if (wasBusy.current && !s.busy && s.run?.status === 'completed') {
+      if (s.run.conclusion === 'success') notify('success', 'Publicação concluída. O site mostra as fotos novas em até 1 minuto.');
+      else notify('error', 'A publicação não terminou bem. As fotos continuam na entrada para tentar de novo.');
+      void load();
+      void loadInbox();
+    }
+    wasBusy.current = s.busy;
+    setPublish(s);
+  };
+
+  const refreshPublish = useCallback(async () => {
+    try {
+      applyPublish(await api.publishStatus());
+    } catch {
+      // tenta de novo no próximo ciclo
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    loadInbox();
+    refreshPublish();
+    const onPop = () => setRoute(routeFromUrl());
+    addEventListener('popstate', onPop);
+    return () => removeEventListener('popstate', onPop);
+  }, [load, loadInbox, refreshPublish]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshPublish();
+    }, publish?.busy ? POLL_BUSY_MS : POLL_IDLE_MS);
+    return () => clearInterval(timer);
+  }, [publish?.busy, refreshPublish]);
+
+  const go = (search: string) => {
+    history.pushState(null, '', search || location.pathname);
+    setRoute(routeFromUrl());
+    scrollTo(0, 0);
+  };
+  const navigate = (id: string | null) => go(id ? `?album=${encodeURIComponent(id)}` : '');
+  const openUpload = (id: string | null) => go(`?enviar=${encodeURIComponent(id ?? 'novo')}`);
+
+  const handlePublish = async (id: string) => {
+    applyPublish(await api.publish(id));
+    notify('success', 'Publicação iniciada. O andamento aparece aqui; não precisa ficar com a página aberta.');
+    if (route.upload) go('');
+    void loadInbox();
+  };
+
+  const handleDiscard = async (id: string) => {
+    const r = await api.discardUpload(id);
+    notify('success', `Envio descartado (${plural(r.deleted, 'arquivo apagado', 'arquivos apagados')} da entrada).`);
+    await loadInbox();
+  };
 
   const replaceAlbum = (id: string, album: Album | null) =>
     setData((d) => d && { ...d, albums: album ? d.albums.map((a) => (a.id === id ? album : a)) : d.albums.filter((a) => a.id !== id) });
@@ -173,6 +241,16 @@ export default function App() {
           <p class="state" role="status">
             Carregando álbuns…
           </p>
+        ) : route.upload ? (
+          <UploadView
+            key={route.upload}
+            albums={data.albums}
+            initialId={route.upload}
+            publish={publish}
+            onBack={() => go('')}
+            onPublish={handlePublish}
+            onChanged={() => void loadInbox()}
+          />
         ) : albumId && !album ? (
           <div class="state">
             <p>Álbum não encontrado. Talvez já tenha sido excluído.</p>
@@ -186,13 +264,26 @@ export default function App() {
             album={album}
             base={data.publicBaseUrl}
             busy={busy}
+            lockMessage={publish?.busy ? (publish.message ?? 'Publicação em andamento.') : null}
             onBack={() => navigate(null)}
+            onAddPhotos={() => openUpload(album.id)}
             onRename={handleRename}
             onDeletePhotos={handleDeletePhotos}
             onDeleteAlbum={handleDeleteAlbum}
           />
         ) : (
-          <AlbumList albums={data.albums} base={data.publicBaseUrl} onOpen={navigate} />
+          <>
+            <PublishPanel
+              publish={publish}
+              inbox={inbox}
+              albums={data.albums}
+              onNew={() => openUpload(null)}
+              onContinue={openUpload}
+              onPublish={handlePublish}
+              onDiscard={handleDiscard}
+            />
+            <AlbumList albums={data.albums} base={data.publicBaseUrl} onOpen={navigate} />
+          </>
         )}
       </main>
 

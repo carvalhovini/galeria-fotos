@@ -7,7 +7,9 @@ interface Props {
   album: Album;
   base: string;
   busy: boolean;
+  lockMessage: string | null;
   onBack: () => void;
+  onAddPhotos: () => void;
   onRename: (title: string) => Promise<void>;
   onDeletePhotos: (ids: string[]) => Promise<void>;
   onDeleteAlbum: (confirmTitle: string) => Promise<void>;
@@ -15,7 +17,8 @@ interface Props {
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Algo deu errado. Tente de novo.');
 
-export default function AlbumView({ album, base, busy, onBack, onRename, onDeletePhotos, onDeleteAlbum }: Props) {
+export default function AlbumView({ album, base, busy, lockMessage, onBack, onAddPhotos, onRename, onDeletePhotos, onDeleteAlbum }: Props) {
+  const locked = lockMessage !== null;
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(album.title);
@@ -163,7 +166,16 @@ export default function AlbumView({ album, base, busy, onBack, onRename, onDelet
           >
             Renomear
           </button>
+          <button type="button" class="btn-outline" disabled={busy || locked} onClick={onAddPhotos}>
+            Adicionar fotos
+          </button>
         </div>
+      )}
+
+      {locked && (
+        <p class="lock-note" role="status">
+          {lockMessage} Exclusões e novos envios ficam bloqueados até ela terminar.
+        </p>
       )}
 
       <div class="toolbar">
@@ -207,7 +219,7 @@ export default function AlbumView({ album, base, busy, onBack, onRename, onDelet
       <section class="danger-zone" aria-labelledby="danger-title">
         <h2 id="danger-title">Excluir álbum</h2>
         <p>Remove o álbum do site e apaga todas as fotos dele do bucket, em todas as resoluções. Não dá para desfazer.</p>
-        <button type="button" class="btn-danger" disabled={busy} onClick={() => openDialog('album')}>
+        <button type="button" class="btn-danger" disabled={busy || locked} onClick={() => openDialog('album')}>
           Excluir álbum inteiro
         </button>
       </section>
@@ -220,7 +232,7 @@ export default function AlbumView({ album, base, busy, onBack, onRename, onDelet
               Limpar seleção
             </button>
           </div>
-          <button type="button" class="btn-danger" disabled={busy} onClick={() => openDialog('photos')}>
+          <button type="button" class="btn-danger" disabled={busy || locked} onClick={() => openDialog('photos')}>
             Excluir {count === 1 ? 'foto' : `${count} fotos`}
           </button>
         </div>
