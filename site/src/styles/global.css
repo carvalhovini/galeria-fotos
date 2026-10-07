@@ -232,6 +232,18 @@ img {
 .chip[aria-pressed='true'] .chip-count {
   color: var(--on-accent);
 }
+.chip.is-empty:not([aria-pressed='true']) {
+  color: var(--text-2);
+  border-style: dashed;
+}
+
+.filters-tags {
+  padding-top: 8px;
+}
+
+.filters-empty {
+  padding: 8px 0 24px;
+}
 
 /* Cartões de álbum (home) */
 

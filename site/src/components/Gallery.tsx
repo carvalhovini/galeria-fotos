@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { SITE, type ResolutionId } from '../config';
-import { formatDateLong, loadManifest, type Album } from '../lib/manifest';
+import { formatDateLong, loadManifest, normalizeTag, type Album } from '../lib/manifest';
 import AlbumCards from './AlbumCards';
 import AlbumView from './AlbumView';
 import { photoKey, type PhotoRef } from './types';
@@ -14,9 +14,21 @@ function readParam(name: string): string | null {
   return typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get(name);
 }
 
-function homeHref(filter: string) {
-  return filter === ALL ? '/' : `/?data=${encodeURIComponent(filter)}`;
+function readTag(): string | null {
+  const raw = readParam('tag');
+  return raw ? normalizeTag(raw) || null : null;
 }
+
+function homeHref(filter: string, tag: string | null) {
+  const params = new URLSearchParams();
+  if (filter !== ALL) params.set('data', filter);
+  if (tag) params.set('tag', tag);
+  const query = params.toString();
+  return query ? `/?${query}` : '/';
+}
+
+const matchesDate = (album: Album, date: string) => date === ALL || album.date === date;
+const matchesTag = (album: Album, tag: string | null) => !tag || (album.tags?.includes(tag) ?? false);
 
 export default function Gallery() {
   const [status, setStatus] = useState<Status>('loading');
@@ -24,6 +36,7 @@ export default function Gallery() {
   const [attempt, setAttempt] = useState(0);
   const [albumId, setAlbumId] = useState<string | null>(() => readParam('album'));
   const [filter, setFilter] = useState(() => readParam('data') ?? ALL);
+  const [tag, setTag] = useState<string | null>(readTag);
   const [selections, setSelections] = useState<Record<string, Set<string>>>({});
   const [res, setRes] = useState<ResolutionId>('4k');
   const albumIdRef = useRef(albumId);
@@ -51,6 +64,7 @@ export default function Gallery() {
       if (id === albumIdRef.current) return;
       pendingScroll.current = id ? 0 : (e.state?.scrollY ?? 0);
       setFilter(readParam('data') ?? ALL);
+      setTag(readTag());
       setAlbumId(id);
     };
     addEventListener('popstate', onPop);
@@ -76,12 +90,26 @@ export default function Gallery() {
     pendingScroll.current = null;
   }, [albumId, status]);
 
+  // Todas as tags, das mais usadas para as menos usadas.
+  const allTags = useMemo(() => {
+    const uses = new Map<string, number>();
+    for (const a of albums) for (const t of a.tags ?? []) uses.set(t, (uses.get(t) ?? 0) + 1);
+    return [...uses.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  }, [albums]);
+  const activeTag = tag && allTags.includes(tag) ? tag : null;
+  const activeFilter = albums.some((a) => a.date === filter) ? filter : ALL;
+
+  // Cada linha de chips conta as fotos considerando o filtro da outra linha.
   const dates = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const a of albums) counts.set(a.date, (counts.get(a.date) ?? 0) + a.photos.length);
+    for (const a of albums) counts.set(a.date, (counts.get(a.date) ?? 0) + (matchesTag(a, activeTag) ? a.photos.length : 0));
     return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [albums]);
-  const activeFilter = dates.some(([d]) => d === filter) ? filter : ALL;
+  }, [albums, activeTag]);
+  const tags = useMemo<[string, number][]>(
+    () => allTags.map((t) => [t, albums.reduce((sum, a) => sum + (matchesDate(a, activeFilter) && matchesTag(a, t) ? a.photos.length : 0), 0)]),
+    [albums, allTags, activeFilter],
+  );
+  const visibleAlbums = albums.filter((a) => matchesDate(a, activeFilter) && matchesTag(a, activeTag));
 
   const refs = useMemo<PhotoRef[]>(
     () => (album ? album.photos.map((photo, i) => ({ key: photoKey(album.id, photo.id), album, photo, n: i + 1 })) : []),
@@ -100,15 +128,22 @@ export default function Gallery() {
       history.back();
       return;
     }
-    history.pushState({}, '', homeHref(activeFilter));
+    history.pushState({}, '', homeHref(activeFilter, activeTag));
     pendingScroll.current = 0;
     setAlbumId(null);
   };
 
-  const pickFilter = (date: string) => {
+  const applyFilters = (date: string, nextTag: string | null) => {
     setFilter(date);
-    history.replaceState(history.state, '', homeHref(date));
+    setTag(nextTag);
+    history.replaceState(history.state, '', homeHref(date, nextTag));
   };
+
+  // Se a combinação ficaria vazia, o filtro da outra linha é limpo.
+  const pickFilter = (date: string) =>
+    applyFilters(date, albums.some((a) => matchesDate(a, date) && matchesTag(a, activeTag)) ? activeTag : null);
+  const pickTag = (next: string | null) =>
+    applyFilters(albums.some((a) => matchesDate(a, activeFilter) && matchesTag(a, next)) ? activeFilter : ALL, next);
 
   if (status === 'loading') {
     return (
@@ -156,7 +191,7 @@ export default function Gallery() {
         refs={refs}
         selected={selections[album.id] ?? EMPTY}
         res={res}
-        homeHref={homeHref(activeFilter)}
+        homeHref={homeHref(activeFilter, activeTag)}
         onRes={setRes}
         onSelectionChange={(next) => setSelections((prev) => ({ ...prev, [album.id]: next }))}
         onBack={goHome}
@@ -166,12 +201,17 @@ export default function Gallery() {
 
   return (
     <AlbumCards
-      albums={albums}
+      albums={visibleAlbums}
       dates={dates}
+      tags={tags}
+      tagTotal={albums.reduce((sum, a) => sum + (matchesDate(a, activeFilter) ? a.photos.length : 0), 0)}
       filter={activeFilter}
+      tag={activeTag}
       allValue={ALL}
       selectedCount={(id) => selections[id]?.size ?? 0}
       onFilter={pickFilter}
+      onTag={pickTag}
+      onClear={() => applyFilters(ALL, null)}
       onOpen={openAlbum}
     />
   );

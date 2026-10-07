@@ -13,6 +13,8 @@ export interface Album {
   photos: Photo[];
   // Opcional no manifest: id da foto de capa. Sem ele, a capa é a primeira foto.
   cover?: string;
+  // Opcional: até 5 tags curtas, minúsculas e sem acento.
+  tags?: string[];
 }
 
 export interface Manifest {
@@ -24,6 +26,29 @@ export type Variant = 'thumb' | 'preview' | ResolutionId;
 
 const ID_RE = /^[A-Za-z0-9_-]+$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TAG_RE = /^[a-z0-9]+(?:[ -][a-z0-9]+)*$/;
+const TAGS_MAX = 5;
+const TAG_MAX_LENGTH = 24;
+
+// Mesma regra de admin/src/shared/types.ts.
+export function normalizeTag(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function toTags(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const tags = value
+    .filter((t): t is string => typeof t === 'string')
+    .map(normalizeTag)
+    .filter((t, i, all) => t.length <= TAG_MAX_LENGTH && TAG_RE.test(t) && all.indexOf(t) === i)
+    .slice(0, TAGS_MAX);
+  return tags.length > 0 ? tags : undefined;
+}
 
 function isPhoto(p: unknown): p is Photo {
   const o = p as Photo;
@@ -36,7 +61,7 @@ function toAlbum(a: unknown): Album | null {
   const photos = Array.isArray(o.photos) ? o.photos.filter(isPhoto) : [];
   if (photos.length === 0) return null;
   const cover = typeof o.cover === 'string' && photos.some((p) => p.id === o.cover) ? o.cover : undefined;
-  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos, cover };
+  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos, cover, tags: toTags(o.tags) };
 }
 
 export function coverPhoto(album: Album): Photo {
