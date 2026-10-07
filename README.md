@@ -94,13 +94,18 @@ compartilhado. A capa e as tags de cada álbum são escolhidas no gerenciador; s
 escolhida, vale a primeira foto. Se algum álbum tiver tags, a home mostra também um filtro por
 tag (`?tag=...`), que combina com o filtro por data (`?data=...`).
 
+No visualizador e na barra de seleção (com 1 foto marcada) há o link "Pedir para remover esta
+foto": ele copia uma mensagem pronta com o id da foto e o álbum e abre a conversa no Instagram.
+Os textos ficam em `removal`, no `config.ts`.
+
 O bucket precisa de uma regra de CORS liberando GET para as origens do site (o domínio
 final e `http://localhost:4321` em desenvolvimento), senão o manifest e os downloads falham.
 
 ## Gerenciador (admin.carvalhovini.com)
 
 Projeto separado em `admin/`: um Worker com a API e uma interface leve para renomear álbuns,
-escolher a capa (selecione 1 foto e toque em "Definir como capa"), editar as tags, excluir fotos, excluir álbuns inteiros e enviar fotos pelo celular. Cada alteração guarda uma
+escolher a capa (selecione 1 foto e toque em "Definir como capa"), editar as tags, gerar o
+QR code do álbum (PNG ou folha para imprimir), excluir fotos, excluir álbuns inteiros e enviar fotos pelo celular. Cada alteração guarda uma
 cópia do manifest anterior em `manifest-backups/` no bucket e, depois de excluir, limpa o
 cache da Cloudflare das URLs removidas.
 

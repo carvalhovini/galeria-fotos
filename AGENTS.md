@@ -188,6 +188,11 @@ para ordenar.
   "Definir como capa"; a capa atual tem o selo "Capa". O bloco "Tags" edita as tags com
   sugestão das já usadas em outros álbuns. Título, capa e tags continuam editáveis durante
   a publicação (a mesclagem do upload preserva esses campos).
+- QR code: botão "QR code" na tela do álbum abre um diálogo com o QR de
+  `https://carvalhovini.com/?album={id}`, o título e a data. Gerado no navegador com `uqr`
+  (sem serviço externo), correção de erro M e margem de 4 módulos. "Baixar PNG" monta um
+  PNG de 1200×1560 (título, data, QR, endereço e @carvalho_.vini) em `qr-{albumId}.png`;
+  "Imprimir" usa uma folha A4 só de impressão (CSS `@media print`) com QR de 12 cm.
 - Purge depois de excluir: por URL, no máximo 100 itens por chamada (limite atual dos planos
   Free/Pro/Business). A resposta das fotos varia com `Origin` (CORS), então cada URL vai
   também com o cabeçalho `Origin` de cada domínio em `PURGE_ORIGINS`, no mesmo lote, junto
@@ -239,8 +244,14 @@ para ordenar.
   de resolução (4K, 2K, Full HD, HD) e aviso quando passa do limite.
 - Visualizador: deslizar no celular, setas e Esc no teclado, pré-carrega as vizinhas, e tem
   botões de anterior, selecionar, baixar a foto atual e próxima.
+- Pedido de remoção: link discreto "Pedir para remover esta foto" no visualizador e na barra
+  de seleção (só com exatamente 1 foto selecionada). O toque copia "Olá! Quero pedir a remoção
+  da foto {id} do álbum {título}." e abre `https://ig.me/m/carvalho_.vini`, com um aviso curto.
+  A cópia é síncrona dentro do toque (exigência do iOS); se falhar, tenta a API de área de
+  transferência e, sem ela, mostra o texto selecionável com "Copiar" e "Abrir o Instagram".
+  Textos e usuário do Instagram em `site/src/config.ts` (`removal` e `instagram`).
 - Seção de apoio com Pix e Instagram.
-- Todos os textos do site (hero, seção de apoio, rodapé, título e descrição) ficam em
+- Todos os textos do site (hero, seção de apoio, rodapé, pedido de remoção, título e descrição) ficam em
   `site/src/config.ts`, num único lugar.
 - Chave Pix: ler de uma constante de configuração, nunca espalhar pelo código.
 - Acessibilidade: usar `<button>` e `<a>` reais, `aria-pressed` nos itens selecionáveis,
