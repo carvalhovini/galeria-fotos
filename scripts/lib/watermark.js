@@ -14,7 +14,8 @@ function loadFont() {
 
 // Gera a marca d'água como SVG de caminhos (sem depender de fontes do sistema),
 // pronta para o composite do sharp numa imagem de width x height.
-export function createWatermark(width, height) {
+// `bottomRatio` troca a margem de baixo por essa fração da altura.
+export function createWatermark(width, height, { bottomRatio } = {}) {
   const f = loadFont();
   const { text, widthRatio, marginRatio, color, opacity, shadow } = WATERMARK;
   const longSide = Math.max(width, height);
@@ -46,7 +47,8 @@ export function createWatermark(width, height) {
 </svg>`;
 
   const left = Math.max(0, Math.round(width - margin - textW - pad));
-  const top = Math.max(0, Math.round(height - margin - textH - pad));
+  const bottom = bottomRatio ? height * bottomRatio : margin;
+  const top = Math.max(0, Math.round(height - bottom - textH - pad));
 
   return { input: Buffer.from(svg), left, top };
 }

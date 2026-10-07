@@ -12,6 +12,8 @@ export const INPUT_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
 
 export const JPEG_OPTIONS = { quality: 85, mozjpeg: true };
 
+// `format`: versão recortada para o Instagram. É opcional no upload e o álbum só a anuncia
+// no manifest (`formats`) quando todas as fotos têm o arquivo.
 export const VARIANTS = [
   { key: 'thumb', dir: 'thumb', size: 900, watermark: false },
   { key: 'preview', dir: 'preview', size: 1600, watermark: false },
@@ -19,7 +21,19 @@ export const VARIANTS = [
   { key: '2k', dir: 'dl/2k', size: 2560, watermark: true },
   { key: 'fhd', dir: 'dl/fhd', size: 1920, watermark: true },
   { key: 'hd', dir: 'dl/hd', size: 1280, watermark: true },
+  { key: 'ig45', dir: 'dl/ig45', crop: { width: 1080, height: 1350, position: 'attention' }, watermark: true, format: true },
+  // Nos Stories a barra de resposta cobre cerca de 14% de baixo da tela; a marca fica acima dela.
+  {
+    key: 'ig916',
+    dir: 'dl/ig916',
+    crop: { width: 1080, height: 1920, position: 'attention' },
+    watermark: true,
+    watermarkBottomRatio: 0.14,
+    format: true,
+  },
 ];
+
+export const FORMAT_KEYS = VARIANTS.filter((v) => v.format).map((v) => v.key);
 
 // Proporções relativas ao lado maior da imagem final (widthRatio, marginRatio)
 // ou ao tamanho da fonte (shadow).

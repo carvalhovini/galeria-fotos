@@ -28,11 +28,14 @@ function variantHashes() {
   const { fontFile, ...watermark } = WATERMARK;
   const hashes = {};
   for (const v of VARIANTS) {
+    // Campos só das versões recortadas entram no fim, para não mudar o hash das outras.
     const payload = {
       pipeline: PIPELINE_VERSION,
       jpeg: JPEG_OPTIONS,
       size: v.size,
       watermark: v.watermark ? { ...watermark, fontHash } : null,
+      ...(v.crop && { crop: v.crop }),
+      ...(v.watermarkBottomRatio && { watermarkBottomRatio: v.watermarkBottomRatio }),
     };
     hashes[v.key] = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 16);
   }
@@ -55,10 +58,21 @@ async function mtimeMs(file) {
   }
 }
 
-async function generateVariant(file, variant, outPath) {
+// Maior recorte na proporção pedida que cabe na foto, limitado ao tamanho final: foto menor
+// sai menor, na mesma proporção, sem ampliar.
+function cropSize(crop, w, h) {
+  const ratio = crop.width / crop.height;
+  const width = Math.min(crop.width, w, Math.floor(h * ratio));
+  return { width, height: Math.round(width / ratio) };
+}
+
+async function generateVariant(file, variant, outPath, { w, h }) {
+  const resize = variant.crop
+    ? { ...cropSize(variant.crop, w, h), fit: 'cover', position: sharp.strategy[variant.crop.position] }
+    : { width: variant.size, height: variant.size, fit: 'inside', withoutEnlargement: true };
   const resized = sharp(file, { failOn: 'error' })
     .rotate()
-    .resize({ width: variant.size, height: variant.size, fit: 'inside', withoutEnlargement: true })
+    .resize(resize)
     .flatten({ background: '#ffffff' })
     .toColorspace('srgb');
 
@@ -68,7 +82,7 @@ async function generateVariant(file, variant, outPath) {
     if (variant.watermark) {
       const { data, info } = await resized.raw().toBuffer({ resolveWithObject: true });
       await sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
-        .composite([createWatermark(info.width, info.height)])
+        .composite([createWatermark(info.width, info.height, { bottomRatio: variant.watermarkBottomRatio })])
         .jpeg(JPEG_OPTIONS)
         .toFile(tmpPath);
     } else {
@@ -138,7 +152,7 @@ async function processAlbum(dir, { force, hashes }) {
           continue;
         }
         try {
-          await generateVariant(photo.file, v, outPath);
+          await generateVariant(photo.file, v, outPath, { w, h });
           stats.generated++;
           generatedHere++;
         } catch (err) {

@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ORIGINALS_DIR, OUTPUT_DIR, R2_ENV_VARS, UPLOAD, VARIANTS } from './lib/config.js';
+import { FORMAT_KEYS, ORIGINALS_DIR, OUTPUT_DIR, R2_ENV_VARS, UPLOAD, VARIANTS } from './lib/config.js';
 import { parseAlbumDir, readTitleOverride } from './lib/album.js';
 import { loadEnvFile, requireEnv } from './lib/env.js';
-import { emptyManifest, mergeAlbums, parseManifest, summarizeManifest, unionPhotos } from './lib/manifest.js';
+import { albumFormats, emptyManifest, mergeAlbums, parseManifest, summarizeManifest, unionPhotos } from './lib/manifest.js';
 import { runPool } from './lib/pool.js';
 import { createR2Client, describeError, getText, headSize, isPreconditionFailed, putObject, withRetry } from './lib/r2.js';
 
@@ -39,6 +39,7 @@ async function prepareAlbum(arg) {
 
   const files = [];
   const missing = [];
+  const missingFormats = new Map(FORMAT_KEYS.map((k) => [k, 0]));
   for (const photo of albumJson.photos) {
     for (const v of VARIANTS) {
       const rel = `${v.dir}/${photo.id}.jpg`;
@@ -47,7 +48,8 @@ async function prepareAlbum(arg) {
         const { size } = await fs.stat(localPath);
         files.push({ key: `albums/${id}/${rel}`, localPath, size, photoId: photo.id });
       } catch {
-        missing.push(rel);
+        if (v.format) missingFormats.set(v.key, missingFormats.get(v.key) + 1);
+        else missing.push(rel);
       }
     }
   }
@@ -56,6 +58,14 @@ async function prepareAlbum(arg) {
     throw new Error(
       `${id}: faltam ${missing.length} arquivo(s) em output/ (ex.: ${sample}). Rode: npm run process -- originals/${id}`,
     );
+  }
+  const formats = FORMAT_KEYS.filter((k) => missingFormats.get(k) === 0);
+  for (const [k, n] of missingFormats) {
+    if (n > 0) {
+      console.warn(
+        `AVISO: ${id}: falta a versão "${k}" em ${n} foto(s). O site não vai oferecer esse formato no álbum. Para gerar: npm run process -- originals/${id}`,
+      );
+    }
   }
 
   const override = await readTitleOverride(path.join(ORIGINALS_DIR, id));
@@ -68,6 +78,7 @@ async function prepareAlbum(arg) {
     titleOverride: override,
     folderTitle: albumJson.title,
     files,
+    formats,
     entry: { id, date: albumJson.date, photos: albumJson.photos },
   };
 }
@@ -155,6 +166,9 @@ async function updateManifest(albums, ctx) {
       });
       const entry = { ...existing, id: album.entry.id, date: album.entry.date, title, photos };
       if (entry.cover && !photos.some((p) => p.id === entry.cover)) delete entry.cover;
+      const formats = albumFormats(existing, album.entry.photos, album.formats, photos);
+      if (formats.length > 0) entry.formats = formats;
+      else delete entry.formats;
       entries.push(entry);
       let action;
       if (!existing) {

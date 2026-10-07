@@ -46,6 +46,18 @@ export function unionPhotos(existing = [], incoming = [], { overwrite = false, s
   return { photos: merged, added: added.length };
 }
 
+// Formatos extras que o álbum pode anunciar: os que este envio tem em todas as suas fotos,
+// desde que cada foto já publicada e não reenviada também tenha (o álbum publicado já
+// anunciava o formato).
+export function albumFormats(existing, incoming, localFormats, photos) {
+  const incomingIds = new Set(incoming.map((p) => p.id));
+  const published = new Set((existing?.photos ?? []).map((p) => p.id));
+  const publishedFormats = new Set(existing?.formats ?? []);
+  return localFormats.filter((f) =>
+    photos.every((p) => incomingIds.has(p.id) || (publishedFormats.has(f) && published.has(p.id))),
+  );
+}
+
 export function summarizeManifest(manifest) {
   const photos = manifest.albums.reduce((sum, a) => sum + (a.photos?.length ?? 0), 0);
   return { albums: manifest.albums.length, photos };
