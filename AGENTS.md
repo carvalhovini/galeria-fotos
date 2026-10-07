@@ -6,7 +6,8 @@ Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
 ## Objetivo do produto
 
 - Visitante acessa sem login, filtra as fotos por data e vê uma galeria.
-- Seleciona uma ou várias fotos e baixa em 4K, 2K, Full HD ou HD.
+- Seleciona uma ou várias fotos e baixa em 4K, 2K, Full HD ou HD, ou nos recortes para o
+  Instagram (4:5 e Stories 9:16) quando o álbum tem essas versões.
 - Toda foto baixada sai com marca d'água de texto: `@carvalho_.vini`.
 - Download é grátis. Existe um bloco opcional de ajuda de custo via Pix e um pedido
   para marcar @carvalho_.vini no Instagram. Nada disso é obrigatório.
@@ -22,7 +23,8 @@ Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
   execução, então publicar um jogo novo NÃO exige novo deploy.
 - **Download em lote:** feito no navegador (fetch dos arquivos + zip com `fflate`), sem servidor.
   Foto única baixa direto. Limite por download: 150 MB estimados pela resolução
-  (4K ≈ 1 MB, 2K ≈ 0,5 MB, Full HD ≈ 0,3 MB, HD ≈ 0,15 MB por foto). O zip é montado em
+  (4K ≈ 1 MB, 2K ≈ 0,5 MB, Full HD ≈ 0,3 MB, HD ≈ 0,15 MB, Instagram 4:5 ≈ 0,2 MB,
+  Stories 9:16 ≈ 0,25 MB por foto). O zip é montado em
   fluxo, na ordem da galeria.
 - **Processamento e upload:** scripts Node.js (ESM) rodando localmente, com `sharp`.
 - **Envio pelo celular:** o gerenciador grava as fotos originais no bucket privado
@@ -66,6 +68,8 @@ Para cada foto original, gerar:
 | dl/2k | 2560 px | sim |
 | dl/fhd | 1920 px | sim |
 | dl/hd | 1280 px | sim |
+| dl/ig45 | 1080×1350 (recorte 4:5) | sim |
+| dl/ig916 | 1080×1920 (recorte 9:16) | sim |
 
 Regras:
 - JPEG, qualidade ~85, `mozjpeg: true`. Nunca ampliar (`withoutEnlargement: true`).
@@ -76,7 +80,17 @@ Regras:
   Deve ser legível mas discreta.
 - Renderizar o texto de forma determinística: converter o texto em caminhos SVG usando a fonte
   TTF do repositório (por exemplo com `opentype.js`), e NÃO depender de fontes do sistema.
-- O script deve ser idempotente: pular arquivos já processados/enviados.
+- O script deve ser idempotente: pular arquivos já processados/enviados. Cada versão tem um
+  hash da sua configuração em `.process-state.json`; mudar uma versão (ou criar uma nova)
+  regera só ela, sem tocar nas outras.
+- Recortes do Instagram (`ig45`, `ig916`): girar, recortar com `sharp.strategy.attention`
+  (região de maior interesse) no maior retângulo da proporção que cabe na foto, limitado a
+  1080 de largura, e só depois aplicar a marca. Foto pequena sai menor, na mesma proporção, sem
+  ampliar. A marca segue a mesma regra (proporcional ao lado maior); no 9:16 ela fica a 14% da
+  altura acima da borda de baixo, fora da barra de resposta dos Stories. O recorte automático
+  pode errar em fotos escuras ou com o assunto na borda (paisagem em 9:16 perde até 60% da largura).
+- Custo medido (M4, originais de 3264×4928): as 6 versões levam ~1,4 s por foto e os dois
+  recortes mais ~0,36 s; em espaço, ~2,3 MB por foto mais ~0,3 MB dos recortes.
 
 ## Estrutura no R2
 
@@ -87,6 +101,8 @@ albums/{albumId}/dl/4k/{photoId}.jpg
 albums/{albumId}/dl/2k/{photoId}.jpg
 albums/{albumId}/dl/fhd/{photoId}.jpg
 albums/{albumId}/dl/hd/{photoId}.jpg
+albums/{albumId}/dl/ig45/{photoId}.jpg    # opcional: álbuns processados antes não têm
+albums/{albumId}/dl/ig916/{photoId}.jpg   # opcional
 manifest.json
 manifest-backups/manifest-{data-hora}-{etag}.json   # cópia gravada pelo gerenciador antes de cada alteração
 ```
@@ -111,6 +127,7 @@ _publishing.json            # marcador gravado ao disparar a publicação
       "title": "Nome do jogo",
       "cover": "IMG_0001",
       "tags": ["parque", "por do sol"],
+      "formats": ["ig45", "ig916"],
       "photos": [
         { "id": "IMG_0001", "w": 4928, "h": 3264, "t": "2026-09-27T15:04:05.120" }
       ]
@@ -127,7 +144,11 @@ Campos novos são sempre opcionais, para não quebrar manifests antigos. `cover`
 O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando a foto da capa
 é excluída. `tags` (opcional) é uma lista de até 5 textos curtos (até 24 caracteres), em
 minúsculas, sem acento, só letras, números, espaço e hífen (ex: `por do sol`); sem tags, o
-campo não existe. O upload mantém as tags ao reenviar. `t` (opcional) é o horário EXIF da foto
+campo não existe. O upload mantém as tags ao reenviar. `formats` (opcional) lista os recortes
+do Instagram que TODAS as fotos do álbum têm no bucket; o site só oferece esses formatos.
+O upload calcula: um formato entra se as fotos enviadas agora o têm e as já publicadas que não
+foram reenviadas também tinham (o álbum já anunciava o formato). Assim, um álbum antigo que
+recebe fotos novas pelo celular não anuncia o formato até ser reprocessado inteiro. `t` (opcional) é o horário EXIF da foto
 como texto local sem fuso (`AAAA-MM-DDTHH:mm:ss.SSS`), igual em qualquer máquina; serve só
 para ordenar.
 
@@ -146,6 +167,9 @@ para ordenar.
   (só ganham `t` se não tinham), novas entram; título, capa e tags são preservados. `--overwrite`
   substitui as entradas repetidas. Se todas as fotos têm `t`, ordenar por `t`; senão as novas
   vão para o fim. Assim o workflow publica só as fotos novas sem apagar as antigas.
+- Recortes do Instagram são opcionais no upload: faltando em alguma foto, o upload avisa,
+  envia o resto e o álbum não anuncia o formato em `formats`. Arquivos já publicados com o
+  mesmo tamanho são pulados, então reprocessar e reenviar um álbum antigo só sobe os recortes.
 - `scripts/inbox.js pull {albumId}` baixa a entrada para `originals/{albumId}/` e cria o
   `titulo.txt` só para álbum novo; `clean` apaga da entrada só as chaves que o `pull` baixou
   (lista em `output/inbox/`). Usa `R2_INBOX_BUCKET`.
@@ -182,7 +206,8 @@ para ordenar.
 - Toda alteração do manifest: ler com ETag, aplicar numa cópia, gravar o anterior em
   `manifest-backups/`, gravar com `onlyIf: { etagMatches }` e repetir do zero em conflito
   (até 5 vezes). Só depois apagar os arquivos, para o site nunca listar foto já apagada.
-- Excluir foto remove as 6 versões. Álbum sem fotos sai do manifest e tudo em
+- Excluir foto remove as 8 versões (as 6 de sempre e os 2 recortes do Instagram, existindo ou
+  não), e o purge inclui as 8 URLs. Álbum sem fotos sai do manifest e tudo em
   `albums/{id}/` é apagado.
 - Capa e tags: na tela do álbum, com exatamente 1 foto selecionada, a barra mostra
   "Definir como capa"; a capa atual tem o selo "Capa". O bloco "Tags" edita as tags com
@@ -241,7 +266,10 @@ para ordenar.
   "Mostrando X de N" e botão "Carregar mais". Tiles com `content-visibility: auto`.
 - Seleção guardada por álbum (trocar de álbum não perde). "Selecionar todas" respeita o
   limite da resolução escolhida e avisa quantas cabem. Barra fixa de download com escolha
-  de resolução (4K, 2K, Full HD, HD) e aviso quando passa do limite.
+  de resolução (4K, 2K, Full HD, HD) e aviso quando passa do limite. Se o álbum tem `formats`,
+  aparecem também "Instagram 4:5" (1080×1350) e "Instagram Stories 9:16" (1080×1920), numa
+  segunda linha no celular. A escolha fica guardada entre álbuns; num álbum sem o formato vale
+  4K. Num formato do Instagram, o aviso de limite não sugere trocar de resolução.
 - Visualizador: deslizar no celular, setas e Esc no teclado, pré-carrega as vizinhas, e tem
   botões de anterior, selecionar, baixar a foto atual e próxima.
 - Pedido de remoção: link discreto "Pedir para remover esta foto" no visualizador e na barra

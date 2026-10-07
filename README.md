@@ -1,6 +1,7 @@
 # Galeria de fotos (carvalhovini.com)
 
-Galeria de fotos de hobby com download grátis em 4K, 2K, Full HD e HD, com marca d'água `@carvalho_.vini`.
+Galeria de fotos de hobby com download grátis em 4K, 2K, Full HD e HD (e recortes para o
+Instagram em 4:5 e 9:16), com marca d'água `@carvalho_.vini`.
 Detalhes do projeto e convenções em [AGENTS.md](AGENTS.md).
 
 ## Requisitos
@@ -22,12 +23,14 @@ Detalhes do projeto e convenções em [AGENTS.md](AGENTS.md).
    ```
 
 3. Os arquivos saem em `output/albums/{albumId}/`, na mesma estrutura do R2:
-   `thumb/`, `preview/` e `dl/4k|2k|fhd|hd/` (as versões de download têm marca d'água),
-   mais um `album.json` com título, data e dimensões das fotos.
+   `thumb/`, `preview/`, `dl/4k|2k|fhd|hd/` e os recortes do Instagram `dl/ig45/` (1080×1350)
+   e `dl/ig916/` (1080×1920), feitos pela região de maior interesse da foto (as versões de
+   download têm marca d'água), mais um `album.json` com título, data e dimensões das fotos.
 
 O script pode ser rodado de novo sem custo: pula o que já foi gerado e refaz só o que
 mudou (foto original editada ou configuração alterada em `scripts/lib/config.js`).
-Para refazer tudo, use `--force`.
+Para refazer tudo, use `--force`. Rodar de novo num álbum processado antes dos recortes do
+Instagram gera só os recortes (cerca de 0,4 s e 0,3 MB a mais por foto).
 
 O id de cada foto vem do nome do arquivo, com só letras, números, `_` e `-`.
 Se dois arquivos gerarem o mesmo id, o segundo é ignorado e o script avisa.
@@ -48,7 +51,9 @@ npm run upload -- 2026-09-27_final-estadual --dry-run   # mostra o que seria env
 npm run upload -- 2026-09-27_final-estadual
 ```
 
-- Envia as 6 versões de cada foto do `album.json` para `albums/{albumId}/` (cache de 1 ano, `immutable`).
+- Envia as versões de cada foto do `album.json` para `albums/{albumId}/` (cache de 1 ano, `immutable`).
+  Os recortes do Instagram são opcionais: se faltarem, o upload avisa e o site não oferece esse
+  formato no álbum. Com todos presentes, o manifest ganha `formats` e o site mostra as opções.
 - Pula arquivos que já existem no bucket com o mesmo tamanho. Arquivos que existem com tamanho
   diferente também são pulados, com aviso; para substituir, use `--overwrite` (quem já tem a foto
   antiga em cache pode continuar vendo a versão antiga).
