@@ -118,10 +118,14 @@ await mock('/__purge-log', 'DELETE');
 const del1 = await api('POST', `/api/albums/${TEST}/delete-photos`, { body: { photoIds: ['DSC_0001'] } });
 check('200 e álbum com 1 foto', del1.status === 200 && del1.data.album?.photos.length === 1);
 check('excluir a foto da capa remove o cover e mantém as tags', !('cover' in (del1.data.album ?? {})) && del1.data.album?.tags?.join() === 'rua,noite');
-check('6 arquivos apagados', del1.data?.deletedObjects === 6);
-check('purge de 7 URLs (6 versões + manifest)', del1.data?.purge.purged.length === 7 && del1.data.purge.failed.length === 0);
+check('8 arquivos apagados (6 versões + 2 formatos do Instagram)', del1.data?.deletedObjects === 8);
+check('purge de 9 URLs (8 versões + manifest)', del1.data?.purge.purged.length === 9 && del1.data.purge.failed.length === 0);
+check(
+  'purge inclui as versões do Instagram',
+  ['dl/ig45', 'dl/ig916'].every((dir) => del1.data?.purge.purged.some((u) => u.includes(`/${dir}/DSC_0001.jpg`))),
+);
 let log = await mock('/__purge-log');
-check('1 chamada com 28 itens (7 URLs x 4 variantes de origem)', log.length === 1 && log[0].files.length === 28, JSON.stringify(log.map((c) => c.files.length)));
+check('1 chamada com 36 itens (9 URLs x 4 variantes de origem)', log.length === 1 && log[0].files.length === 36, JSON.stringify(log.map((c) => c.files.length)));
 check(
   'inclui variantes com Origin de www e workers.dev',
   log[0].files.some((f) => f.headers?.Origin === 'https://www.carvalhovini.com') &&
@@ -132,11 +136,11 @@ check('foto já excluída: 404', (await api('POST', `/api/albums/${TEST}/delete-
 console.log('\nPurge com falha');
 await mock('/__purge-mode?fail=1', 'POST');
 const del2 = await api('POST', `/api/albums/${COPY}/delete-photos`, { body: { photoIds: ['DSC_0001'] } });
-check('exclusão continua funcionando', del2.status === 200 && del2.data.deletedObjects === 6);
-check('purge falho é reportado', del2.data?.purge.failed.length === 7 && /recusou/.test(del2.data.purge.message ?? ''), JSON.stringify(del2.data?.purge));
+check('exclusão continua funcionando', del2.status === 200 && del2.data.deletedObjects === 8);
+check('purge falho é reportado', del2.data?.purge.failed.length === 9 && /recusou/.test(del2.data.purge.message ?? ''), JSON.stringify(del2.data?.purge));
 await mock('/__purge-mode?fail=0', 'POST');
 const retry = await api('POST', '/api/purge', { body: { urls: del2.data.purge.failed } });
-check('nova tentativa limpa tudo', retry.status === 200 && retry.data.purged.length === 7 && retry.data.failed.length === 0);
+check('nova tentativa limpa tudo', retry.status === 200 && retry.data.purged.length === 9 && retry.data.failed.length === 0);
 
 console.log('\nAlterações simultâneas (ETag)');
 const [r1, r2, r3, r4, r5] = await Promise.all([
@@ -161,7 +165,7 @@ await mock('/__purge-log', 'DELETE');
 const delAlbum = await api('DELETE', `/api/albums/${COPY}`, { body: { confirmTitle: ' cópia renomeada ' } });
 check('título com maiúsculas diferentes: 400', delAlbum.status === 400);
 const delAlbum2 = await api('DELETE', `/api/albums/${COPY}`, { body: { confirmTitle: ' Cópia  renomeada ' } });
-check('título certo: 200, apaga os 6 arquivos restantes', delAlbum2.status === 200 && delAlbum2.data.deletedObjects === 6, JSON.stringify(delAlbum2.data));
+check('título certo: 200, apaga os 6 arquivos restantes (o álbum de teste não tem formatos do Instagram)', delAlbum2.status === 200 && delAlbum2.data.deletedObjects === 6, JSON.stringify(delAlbum2.data));
 check('álbum sumiu do manifest', !(await find(COPY)));
 
 console.log('\nPurge em lotes (cópia local do Ibirapuera)');
@@ -170,10 +174,10 @@ await mock('/__purge-log', 'DELETE');
 const many = ibira.photos.slice(0, 100).map((p) => p.id);
 const big = await api('POST', '/api/albums/2026-10-04_ibirapuera/delete-photos', { body: { photoIds: many } });
 log = await mock('/__purge-log');
-check('601 URLs: 20 chamadas no Worker, nenhuma com mais de 100 itens', big.status === 200 && log.length === 20 && log.every((c) => c.files.length <= 100), `${log.length} chamadas`);
-check('o que passou do teto volta como pendente', big.data?.purge.purged.length === 500 && big.data.purge.pending.length === 101, JSON.stringify({ p: big.data?.purge.purged.length, pend: big.data?.purge.pending.length }));
+check('801 URLs: 20 chamadas no Worker, nenhuma com mais de 100 itens', big.status === 200 && log.length === 20 && log.every((c) => c.files.length <= 100), `${log.length} chamadas`);
+check('o que passou do teto volta como pendente', big.data?.purge.purged.length === 500 && big.data.purge.pending.length === 301, JSON.stringify({ p: big.data?.purge.purged.length, pend: big.data?.purge.pending.length }));
 const rest = await api('POST', '/api/purge', { body: { urls: big.data.purge.pending } });
-check('pendentes limpos numa segunda chamada', rest.status === 200 && rest.data.purged.length === 101 && rest.data.pending.length === 0);
+check('pendentes limpos numa segunda chamada', rest.status === 200 && rest.data.purged.length === 301 && rest.data.pending.length === 0);
 
 // Envio e publicação. O GitHub é o falso do access-mock (GITHUB_API_BASE no .dev.vars).
 const UP = '2026-10-05_envio-teste';

@@ -307,7 +307,7 @@ export default function AlbumView({
           onConfirm={confirmDelete}
           onCancel={() => setDialog(null)}
         >
-          <p>As 6 versões de cada foto (miniatura, prévia e downloads) serão apagadas do bucket. Não dá para desfazer.</p>
+          <p>Todas as versões de cada foto (miniatura, prévia, downloads e formatos do Instagram) serão apagadas do bucket. Não dá para desfazer.</p>
           {removesWholeAlbum && <p class="warn-text">Todas as fotos estão selecionadas: o álbum também sai do site.</p>}
         </ConfirmDialog>
       )}

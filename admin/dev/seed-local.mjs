@@ -14,6 +14,8 @@ const COPIES = [
   { id: '2026-09-20_copia-teste', title: 'Cópia do teste' },
 ];
 const VARIANT_DIRS = ['thumb', 'preview', 'dl/4k', 'dl/2k', 'dl/fhd', 'dl/hd'];
+const FORMAT_DIRS = { ig45: 'dl/ig45', ig916: 'dl/ig916' };
+const exists = (file) => fs.access(file).then(() => true, () => false);
 
 const { env, dispose } = await getPlatformProxy({ configPath: path.join(ADMIN_DIR, 'wrangler.jsonc'), persist: true });
 try {
@@ -29,10 +31,17 @@ try {
   }
 
   const albumJson = JSON.parse(await fs.readFile(path.join(OUTPUT_ALBUMS, TEST_ALBUM, 'album.json'), 'utf8'));
+  // Formatos do Instagram entram só se o process já gerou para todas as fotos do teste.
+  const formats = [];
+  for (const [key, dir] of Object.entries(FORMAT_DIRS)) {
+    const all = await Promise.all(albumJson.photos.map((p) => exists(path.join(OUTPUT_ALBUMS, TEST_ALBUM, dir, `${p.id}.jpg`))));
+    if (all.every(Boolean)) formats.push(key);
+  }
+  const dirs = [...VARIANT_DIRS, ...formats.map((k) => FORMAT_DIRS[k])];
   for (const copy of COPIES) {
     let count = 0;
     for (const photo of albumJson.photos) {
-      for (const dir of VARIANT_DIRS) {
+      for (const dir of dirs) {
         const body = await fs.readFile(path.join(OUTPUT_ALBUMS, TEST_ALBUM, dir, `${photo.id}.jpg`));
         await bucket.put(`albums/${copy.id}/${dir}/${photo.id}.jpg`, body, {
           httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000, immutable' },
@@ -41,7 +50,13 @@ try {
       }
     }
     albums = albums.filter((a) => a.id !== copy.id);
-    albums.push({ id: copy.id, date: copy.id.slice(0, 10), title: copy.title, photos: albumJson.photos });
+    albums.push({
+      id: copy.id,
+      date: copy.id.slice(0, 10),
+      title: copy.title,
+      photos: albumJson.photos,
+      ...(formats.length > 0 && { formats }),
+    });
     console.log(`${copy.id}: ${count} arquivos no R2 local.`);
   }
   albums.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));

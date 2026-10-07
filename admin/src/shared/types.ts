@@ -12,6 +12,7 @@ export interface Album {
   photos: Photo[];
   cover?: string;
   tags?: string[];
+  formats?: string[];
 }
 
 export interface Manifest {
@@ -20,7 +21,7 @@ export interface Manifest {
 }
 
 // Mesmas pastas que scripts/lib/config.js gera para cada foto.
-export const VARIANT_DIRS = ['thumb', 'preview', 'dl/4k', 'dl/2k', 'dl/fhd', 'dl/hd'] as const;
+export const VARIANT_DIRS = ['thumb', 'preview', 'dl/4k', 'dl/2k', 'dl/fhd', 'dl/hd', 'dl/ig45', 'dl/ig916'] as const;
 
 export const ALBUM_ID_RE = /^\d{4}-\d{2}-\d{2}_[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const PHOTO_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
