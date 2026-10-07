@@ -6,7 +6,7 @@ import {
   type InboxResponse,
   type PublishStatus,
   type PurgeResult,
-  type RenameResponse,
+  type UpdateAlbumResponse,
   type UploadListResponse,
   type UploadResponse,
 } from '../shared/types';
@@ -59,7 +59,8 @@ const uploadPath = (id: string) => `/api/upload/${encodeURIComponent(id)}`;
 
 export const api = {
   albums: () => call<AlbumsResponse>('GET', '/api/albums'),
-  rename: (id: string, title: string) => call<RenameResponse>('PATCH', albumPath(id), { title }),
+  updateAlbum: (id: string, patch: { title?: string; cover?: string | null; tags?: string[] }) =>
+    call<UpdateAlbumResponse>('PATCH', albumPath(id), patch),
   deletePhotos: (id: string, photoIds: string[]) => call<DeleteResponse>('POST', `${albumPath(id)}/delete-photos`, { photoIds }),
   deleteAlbum: (id: string, confirmTitle: string) => call<DeleteResponse>('DELETE', albumPath(id), { confirmTitle }),
   purge: (urls: string[]) => call<PurgeResult>('POST', '/api/purge', { urls }),

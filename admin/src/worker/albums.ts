@@ -1,13 +1,17 @@
 import {
   PHOTO_ID_RE,
+  TAGS_MAX,
+  TAG_MAX_LENGTH,
+  TAG_RE,
   TITLE_MAX,
   VARIANT_DIRS,
+  normalizeTag,
   photoKey,
   type Album,
   type AlbumsResponse,
   type DeleteResponse,
   type PurgeResult,
-  type RenameResponse,
+  type UpdateAlbumResponse,
 } from '../shared/types';
 import type { AccessIdentity } from './access';
 import type { Env } from './env';
@@ -88,12 +92,46 @@ export async function listAlbums(env: Env, identity: AccessIdentity): Promise<Al
   };
 }
 
-export async function renameAlbum(env: Env, albumId: string, body: Record<string, unknown>): Promise<RenameResponse> {
-  const title = validTitle(body.title);
+export function validTags(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new HttpError(400, 'As tags precisam ser uma lista de textos.');
+  const tags: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== 'string') throw new HttpError(400, 'As tags precisam ser uma lista de textos.');
+    if (raw.includes('—')) throw new HttpError(400, 'Não use travessão (—) nas tags.');
+    const tag = normalizeTag(raw);
+    if (!tag || tags.includes(tag)) continue;
+    if (tag.length > TAG_MAX_LENGTH) throw new HttpError(400, `Cada tag pode ter no máximo ${TAG_MAX_LENGTH} caracteres.`);
+    if (!TAG_RE.test(tag)) throw new HttpError(400, `A tag "${tag}" tem caracteres inválidos. Use só letras, números, espaço e hífen.`);
+    tags.push(tag);
+  }
+  if (tags.length > TAGS_MAX) throw new HttpError(400, `Use no máximo ${TAGS_MAX} tags por álbum.`);
+  return tags;
+}
+
+// Título, capa e tags, sozinhos ou juntos. `cover: null` volta a usar a primeira foto;
+// lista de tags vazia remove o campo.
+export async function updateAlbum(env: Env, albumId: string, body: Record<string, unknown>): Promise<UpdateAlbumResponse> {
+  const has = (key: string) => Object.hasOwn(body, key);
+  if (!has('title') && !has('cover') && !has('tags')) throw new HttpError(400, 'Nada para alterar.');
+  const title = has('title') ? validTitle(body.title) : undefined;
+  const tags = has('tags') ? validTags(body.tags) : undefined;
+  const cover = body.cover;
+  if (has('cover') && cover !== null && (typeof cover !== 'string' || !PHOTO_ID_RE.test(cover))) {
+    throw new HttpError(400, 'Foto de capa inválida.');
+  }
+
   let album = null as Album | null;
   const { backupKey } = await updateManifest(env.BUCKET, (m) => {
     album = findAlbum(m, albumId);
-    album.title = title;
+    if (title !== undefined) album.title = title;
+    if (typeof cover === 'string') {
+      if (!album.photos.some((p) => p.id === cover)) throw new HttpError(400, 'Essa foto não está mais no álbum. Recarregue a página.');
+      album.cover = cover;
+    } else if (cover === null) {
+      delete album.cover;
+    }
+    if (tags?.length) album.tags = tags;
+    else if (tags) delete album.tags;
   });
   return { album: album!, backupKey };
 }

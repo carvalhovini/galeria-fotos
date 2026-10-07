@@ -11,6 +11,7 @@ export interface Album {
   title: string;
   photos: Photo[];
   cover?: string;
+  tags?: string[];
 }
 
 export interface Manifest {
@@ -24,6 +25,19 @@ export const VARIANT_DIRS = ['thumb', 'preview', 'dl/4k', 'dl/2k', 'dl/fhd', 'dl
 export const ALBUM_ID_RE = /^\d{4}-\d{2}-\d{2}_[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const PHOTO_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 export const TITLE_MAX = 120;
+export const TAGS_MAX = 5;
+export const TAG_MAX_LENGTH = 24;
+export const TAG_RE = /^[a-z0-9]+(?:[ -][a-z0-9]+)*$/;
+
+// Minúsculas, sem acento e com espaços simples. Mesma regra de site/src/lib/manifest.ts.
+export function normalizeTag(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export const MUTATION_HEADER = 'X-Galeria-Admin';
 
@@ -46,7 +60,7 @@ export interface AlbumsResponse {
   albums: Album[];
 }
 
-export interface RenameResponse {
+export interface UpdateAlbumResponse {
   album: Album;
   backupKey: string;
 }

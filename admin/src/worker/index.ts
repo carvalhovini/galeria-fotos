@@ -1,6 +1,6 @@
 import { ALBUM_ID_RE, INBOX_META_FILE, MUTATION_HEADER } from '../shared/types';
 import { accessAudience, teamOrigin, verifyAccess } from './access';
-import { deleteAlbum, deletePhotos, listAlbums, renameAlbum, retryPurge } from './albums';
+import { deleteAlbum, deletePhotos, listAlbums, retryPurge, updateAlbum } from './albums';
 import type { Env } from './env';
 import { HttpError, errorResponse, json, readJson } from './http';
 import { discardUpload, listInbox, listUpload, putMeta, putPhoto } from './inbox';
@@ -32,7 +32,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 
   if (resource === 'albums') {
     if (!ALBUM_ID_RE.test(albumId)) return errorResponse(404, 'Álbum não encontrado.');
-    if (!action && method === 'PATCH') return json(await renameAlbum(env, albumId, await readJson(request)));
+    if (!action && method === 'PATCH') return json(await updateAlbum(env, albumId, await readJson(request)));
     if (!action && method === 'DELETE') return json(await deleteAlbum(env, albumId, await readJson(request)));
     if (action === 'delete-photos' && method === 'POST') return json(await deletePhotos(env, albumId, await readJson(request)));
     return errorResponse(action && action !== 'delete-photos' ? 404 : 405, 'Rota ou método não permitido.');

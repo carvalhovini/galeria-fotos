@@ -72,10 +72,52 @@ const renamed = await api('PATCH', `/api/albums/${TEST}`, { body: { title: '  Te
 check('renomeia e normaliza espaços', renamed.status === 200 && renamed.data.album.title === 'Teste renomeado');
 check('devolve o backup gravado', /^manifest-backups\/manifest-.+\.json$/.test(renamed.data?.backupKey ?? ''));
 
+console.log('\nManifest antigo (sem capa e sem tags)');
+const untouched = list.data.albums.filter((a) => a.id !== TEST);
+check('álbuns sem os campos novos são listados', untouched.length > 0 && untouched.every((a) => Array.isArray(a.photos)));
+const patchAlbum = (body, id = TEST) => api('PATCH', `/api/albums/${id}`, { body });
+check('PATCH sem nenhum campo: 400', (await patchAlbum({})).status === 400);
+check('campo desconhecido sozinho: 400', (await patchAlbum({ foo: 1 })).status === 400);
+
+console.log('\nCapa');
+const coverSet = await patchAlbum({ cover: 'DSC_0002' });
+check('define a capa', coverSet.status === 200 && coverSet.data.album.cover === 'DSC_0002', JSON.stringify(coverSet.data?.album?.cover));
+check('capa grava backup', /^manifest-backups\//.test(coverSet.data?.backupKey ?? ''));
+check('capa mantém título e fotos', coverSet.data?.album.title === 'Teste renomeado' && coverSet.data.album.photos.length === 2);
+check('foto que não está no álbum: 400', (await patchAlbum({ cover: 'NAO_EXISTE' })).status === 400);
+check('id de foto inválido: 400', (await patchAlbum({ cover: '../x' })).status === 400);
+check('capa numérica: 400', (await patchAlbum({ cover: 12 })).status === 400);
+check('capa inválida não altera nada', (await find(TEST)).cover === 'DSC_0002');
+const coverNull = await patchAlbum({ cover: null });
+check('cover null volta para a primeira foto', coverNull.status === 200 && !('cover' in coverNull.data.album));
+
+console.log('\nTags');
+const tagged = await patchAlbum({ tags: ['  Pôr   do Sol ', 'PRAIA', 'praia', '', 'São-Paulo'] });
+check(
+  'normaliza (minúsculas, sem acento, espaços simples) e remove repetidas',
+  tagged.status === 200 && JSON.stringify(tagged.data.album.tags) === '["por do sol","praia","sao-paulo"]',
+  JSON.stringify(tagged.data),
+);
+check('mais de 5 tags: 400', (await patchAlbum({ tags: ['a', 'b', 'c', 'd', 'e', 'f'] })).status === 400);
+check('5 tags com repetidas: 200', (await patchAlbum({ tags: ['a', 'b', 'c', 'd', 'e', 'A', 'é'] })).status === 200);
+check('caractere inválido: 400', (await patchAlbum({ tags: ['festa!'] })).status === 400);
+check('tag com travessão: 400', (await patchAlbum({ tags: ['a — b'] })).status === 400);
+check('tag com mais de 24 caracteres: 400', (await patchAlbum({ tags: ['x'.repeat(25)] })).status === 400);
+check('tags que não são lista: 400', (await patchAlbum({ tags: 'praia' })).status === 400);
+check('item que não é texto: 400', (await patchAlbum({ tags: ['praia', 3] })).status === 400);
+check('tags inválidas não alteram nada', (await find(TEST)).tags?.join() === 'a,b,c,d,e');
+const combo = await patchAlbum({ title: 'Teste renomeado', cover: 'DSC_0001', tags: ['rua', 'noite'] });
+check('título, capa e tags juntos', combo.status === 200 && combo.data.album.cover === 'DSC_0001' && combo.data.album.tags.join() === 'rua,noite');
+check('título inválido não grava capa nem tags', (await patchAlbum({ title: ' ', tags: ['x'] })).status === 400 && (await find(TEST)).tags.join() === 'rua,noite');
+const cleared = await patchAlbum({ tags: [] }, COPY);
+check('lista vazia em álbum sem tags: sem o campo', cleared.status === 200 && !('tags' in cleared.data.album));
+check('outros álbuns continuam sem os campos novos', untouched.every((a) => ('tags' in a) === false) && !('tags' in (await find('2026-10-04_ibirapuera'))));
+
 console.log('\nExcluir foto');
 await mock('/__purge-log', 'DELETE');
 const del1 = await api('POST', `/api/albums/${TEST}/delete-photos`, { body: { photoIds: ['DSC_0001'] } });
 check('200 e álbum com 1 foto', del1.status === 200 && del1.data.album?.photos.length === 1);
+check('excluir a foto da capa remove o cover e mantém as tags', !('cover' in (del1.data.album ?? {})) && del1.data.album?.tags?.join() === 'rua,noite');
 check('6 arquivos apagados', del1.data?.deletedObjects === 6);
 check('purge de 7 URLs (6 versões + manifest)', del1.data?.purge.purged.length === 7 && del1.data.purge.failed.length === 0);
 let log = await mock('/__purge-log');
@@ -97,14 +139,19 @@ const retry = await api('POST', '/api/purge', { body: { urls: del2.data.purge.fa
 check('nova tentativa limpa tudo', retry.status === 200 && retry.data.purged.length === 7 && retry.data.failed.length === 0);
 
 console.log('\nAlterações simultâneas (ETag)');
-const [r1, r2, r3] = await Promise.all([
+const [r1, r2, r3, r4, r5] = await Promise.all([
   api('PATCH', `/api/albums/${COPY}`, { body: { title: 'Cópia renomeada' } }),
   api('POST', `/api/albums/${TEST}/delete-photos`, { body: { photoIds: ['DSC_0002'] } }),
   api('PATCH', '/api/albums/2026-10-04_ibirapuera', { body: { title: 'Ibirapuera local' } }),
+  api('PATCH', `/api/albums/${COPY}`, { body: { tags: ['concorrencia'] } }),
+  api('PATCH', `/api/albums/${COPY}`, { body: { cover: 'DSC_0002' } }),
 ]);
-check('as 3 operações terminam com 200', [r1, r2, r3].every((r) => r.status === 200), [r1, r2, r3].map((r) => r.status).join(','));
+const all5 = [r1, r2, r3, r4, r5];
+check('as 5 operações terminam com 200', all5.every((r) => r.status === 200), all5.map((r) => r.status).join(','));
 const after = await albums();
-check('nenhuma alteração se perdeu', after.find((a) => a.id === COPY)?.title === 'Cópia renomeada' && !after.some((a) => a.id === TEST) && after.find((a) => a.id === '2026-10-04_ibirapuera')?.title === 'Ibirapuera local');
+const copyAfter = after.find((a) => a.id === COPY);
+check('nenhuma alteração se perdeu', copyAfter?.title === 'Cópia renomeada' && !after.some((a) => a.id === TEST) && after.find((a) => a.id === '2026-10-04_ibirapuera')?.title === 'Ibirapuera local');
+check('título, tags e capa no mesmo álbum ao mesmo tempo', copyAfter?.tags?.join() === 'concorrencia' && copyAfter.cover === 'DSC_0002', JSON.stringify({ t: copyAfter?.tags, c: copyAfter?.cover }));
 check('álbum que ficou sem fotos saiu do manifest', r2.data?.albumRemoved === true);
 
 console.log('\nExcluir álbum');
@@ -223,6 +270,8 @@ check('enquanto publica: excluir álbum 409', (await api('DELETE', `/api/albums/
 check('enquanto publica: descartar 409', (await api('DELETE', `/api/upload/${UP}`)).status === 409);
 check('enquanto publica: criar álbum 409', (await api('PUT', '/api/upload/2026-10-06_outro/_album.json', { body: { title: 'Outro' } })).status === 409);
 check('enquanto publica: segunda publicação 409', (await api('POST', `/api/publish/${UP}`)).status === 409);
+const duringPublish = await api('PATCH', `/api/albums/${PUBLISHED}`, { body: { tags: ['parque'], cover: pubAlbum.photos[1].id } });
+check('enquanto publica: capa e tags continuam editáveis', duringPublish.status === 200 && duringPublish.data.album.tags.join() === 'parque', String(duringPublish.status));
 await sleep(900);
 const mid = (await api('GET', '/api/publish')).data;
 check('andamento mostra o passo atual', mid.busy && mid.run?.status === 'in_progress' && typeof mid.run.step === 'string' && mid.run.stepsTotal === 8, JSON.stringify(mid.run));
