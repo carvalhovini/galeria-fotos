@@ -1,10 +1,18 @@
 import type { Album } from '../shared/types';
 
+export const PUBLIC_SITE = 'https://carvalhovini.com';
+
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MONTHS_LONG = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 export function formatDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
   return `${d} ${MONTHS[m - 1] ?? '?'} ${y}`;
+}
+
+export function formatDateLong(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return `${d} de ${MONTHS_LONG[m - 1] ?? '?'} de ${y}`;
 }
 
 export function plural(n: number, one: string, many: string): string {

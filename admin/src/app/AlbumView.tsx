@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { TITLE_MAX, type Album } from '../shared/types';
 import ConfirmDialog from './ConfirmDialog';
 import { coverId, formatDate, normalizeTitle, plural, thumbUrl } from './format';
+import QrDialog from './QrDialog';
 import TagEditor from './TagEditor';
 
 interface Props {
@@ -43,9 +44,21 @@ export default function AlbumView({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<'photos' | 'album' | null>(null);
+  const [showQr, setShowQr] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const qrButtonRef = useRef<HTMLButtonElement>(null);
+  const qrWasOpen = useRef(false);
+
+  // Enquanto o diálogo modal está aberto o resto da página é inerte, então o foco só volta depois de fechar.
+  useEffect(() => {
+    if (showQr) qrWasOpen.current = true;
+    else if (qrWasOpen.current) {
+      qrWasOpen.current = false;
+      qrButtonRef.current?.focus();
+    }
+  }, [showQr]);
 
   // Descarta da seleção fotos que sumiram do álbum (excluídas aqui ou em outra aba).
   const photoIds = useMemo(() => new Set(album.photos.map((p) => p.id)), [album]);
@@ -198,6 +211,9 @@ export default function AlbumView({
           <button type="button" class="btn-outline" disabled={busy || locked} onClick={onAddPhotos}>
             Adicionar fotos
           </button>
+          <button type="button" class="btn-outline" ref={qrButtonRef} onClick={() => setShowQr(true)}>
+            QR code
+          </button>
         </div>
       )}
 
@@ -324,6 +340,8 @@ export default function AlbumView({
           />
         </ConfirmDialog>
       )}
+
+      {showQr && <QrDialog album={album} onClose={() => setShowQr(false)} />}
     </section>
   );
 }

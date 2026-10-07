@@ -3,12 +3,11 @@ import type { Album, AlbumsResponse, DeleteResponse, InboxAlbum, PublishStatus }
 import AlbumList from './AlbumList';
 import AlbumView from './AlbumView';
 import { api, finishPurge } from './api';
-import { plural, usedTags } from './format';
+import { PUBLIC_SITE, plural, usedTags } from './format';
 import Notices, { type Notice } from './Notices';
 import PublishPanel from './PublishPanel';
 import UploadView from './UploadView';
 
-const PUBLIC_SITE = 'https://carvalhovini.com';
 const POLL_BUSY_MS = 5000;
 const POLL_IDLE_MS = 30000;
 
@@ -230,9 +229,10 @@ export default function App() {
     <>
       <header class="container admin-header">
         <span class="brand">
-          <svg width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="#FF6A2B" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="14" cy="14" r="11" />
-            <path d="M3 14h22M14 3v22M6 6c4 3 4 13 0 16M22 6c-4 3-4 13 0 16" />
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="#FF6A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="8" width="22" height="15" rx="3" />
+            <path d="M10 8l1.8-3h4.4L18 8" />
+            <circle cx="14" cy="15.5" r="4.5" />
           </svg>
           <span class="brand-name">carvalho_.vini</span>
           <span class="badge">Gerenciador</span>
