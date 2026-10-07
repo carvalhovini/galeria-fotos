@@ -3,6 +3,7 @@ import { DOWNLOAD_LIMIT_MB, HAS_PIX, RESOLUTIONS, SITE, bestFittingResolution, m
 import { buildZip, canShareFiles, downloadFile, fetchBytes, saveBlob, shareJpeg } from '../lib/download';
 import { photoFileName as fileName, zipFileName as zipName } from '../lib/files';
 import { photoUrl } from '../lib/manifest';
+import RemovalLink from './RemovalLink';
 import type { PhotoRef } from './types';
 
 interface Props {
@@ -198,6 +199,12 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
           {count - max === 1 ? 'foto' : 'fotos'}
           {fitting ? ` ou escolha ${fitting.label}, onde cabem todas.` : ' ou baixe em partes.'}
         </p>
+      )}
+
+      {count === 1 && !working && (
+        <div class="sel-removal">
+          <RemovalLink item={items[0]} />
+        </div>
       )}
 
       <div class="sel-live" role="status">

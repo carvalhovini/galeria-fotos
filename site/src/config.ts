@@ -1,5 +1,7 @@
 // Textos e dados editáveis do site. Nos textos, não usar travessão.
 
+const INSTAGRAM_USER = 'carvalho_.vini';
+
 export const SITE = {
   name: 'carvalho_.vini',
   url: 'https://carvalhovini.com',
@@ -21,8 +23,22 @@ export const SITE = {
   footer: "Fotos por @carvalho_.vini. Saem com marca d'água.",
 
   instagram: {
-    handle: '@carvalho_.vini',
-    url: 'https://www.instagram.com/carvalho_.vini/',
+    user: INSTAGRAM_USER,
+    handle: `@${INSTAGRAM_USER}`,
+    url: `https://www.instagram.com/${INSTAGRAM_USER}/`,
+    // Abre a conversa direta (app do Instagram no celular).
+    dm: `https://ig.me/m/${INSTAGRAM_USER}`,
+  },
+
+  // Pedido de remoção: {id} e {titulo} são trocados pela foto e pelo álbum.
+  removal: {
+    link: 'Pedir para remover esta foto',
+    message: 'Olá! Quero pedir a remoção da foto {id} do álbum {titulo}.',
+    copied: 'Texto copiado. É só colar na conversa do Instagram.',
+    copiedOpen: 'Texto copiado. Toque em "Abrir o Instagram" e cole na conversa.',
+    failed: 'Não deu para copiar sozinho. Copie o texto abaixo e cole na conversa do Instagram:',
+    copy: 'Copiar',
+    open: 'Abrir o Instagram',
   },
 
   // Enquanto `key` for o placeholder, o cartão do Pix não aparece no site.

@@ -995,6 +995,70 @@ button:disabled {
   background: var(--accent-hover);
 }
 
+.lb-bar {
+  padding-bottom: 4px;
+}
+.lb-extra {
+  padding: 0 16px calc(8px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+/* Pedido de remoção */
+
+.removal {
+  font-size: 14px;
+}
+.removal-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.removal-link:hover {
+  color: var(--text);
+}
+.removal-live:empty {
+  display: none;
+}
+.removal-note {
+  margin: 0;
+  color: var(--text-3);
+}
+.removal-box {
+  max-width: 460px;
+  margin: 4px auto 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-3);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+}
+.removal-text {
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  user-select: all;
+  -webkit-user-select: all;
+  overflow-wrap: anywhere;
+}
+.removal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.removal-btn {
+  text-decoration: none;
+}
+
+.sel-removal {
+  flex: 1 1 100%;
+  margin-top: -4px;
+}
+
 /* Rodapé */
 
 .site-footer {

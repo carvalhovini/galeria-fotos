@@ -3,6 +3,7 @@ import { resolution, type ResolutionId } from '../config';
 import { downloadFile } from '../lib/download';
 import { photoFileName } from '../lib/files';
 import { formatDate, photoUrl, scaledSize } from '../lib/manifest';
+import RemovalLink from './RemovalLink';
 import type { PhotoRef } from './types';
 
 interface Props {
@@ -185,6 +186,9 @@ export default function Lightbox({ items, index, onIndex, isSelected, onToggle, 
             <p class="visually-hidden" role="status">
               {download.state === 'done' ? 'Download iniciado.' : download.state === 'error' ? 'Não foi possível baixar a foto.' : ''}
             </p>
+          </div>
+          <div class="lb-extra">
+            <RemovalLink item={current} />
           </div>
         </div>
       )}
