@@ -1,6 +1,6 @@
 # Galeria de fotos (carvalhovini.com)
 
-Site de galeria de fotos de esporte (basquete, tênis e outros) de um fotógrafo amador.
+Site de galeria de fotos de um fotógrafo amador, feito por hobby: fotos de tudo um pouco.
 Instagram do autor: @carvalho_.vini (https://www.instagram.com/carvalho_.vini/).
 
 ## Objetivo do produto
@@ -206,7 +206,10 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
 - Tokens do design: fundo `#121110`, superfície `#1B1A18`, texto `#F4F1EA`,
   texto secundário `#A8A194`/`#B9B2A5`, destaque laranja `#FF6A2B` (texto sobre ele `#121110`),
   bordas `#2E2A25`/`#3A352F`. Fontes: Big Shoulders Display (títulos) e DM Sans (corpo).
-- Rótulo do site: "Fotos de esporte" (título da aba, descrição e hero).
+- Tom genérico e de hobby, sem foco em esporte. Título da aba e meta tags (description,
+  Open Graph e Twitter): "carvalho_.vini | Fotos", descrição "Fotos que eu tiro por aí. Hobby
+  de fotógrafo amador." Ícone do cabeçalho e favicon: câmera simples em traço, laranja.
+- Hero sem rótulo acima do título e sem desenho decorativo no fundo.
 - Home: chips de filtro por data (`?data=AAAA-MM-DD`) e cartões de álbum (capa 4:3, título,
   data por extenso, número de fotos), mais recentes primeiro. 3 colunas desktop, 2 tablet,
   1 celular.
@@ -223,8 +226,8 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
 - Visualizador: deslizar no celular, setas e Esc no teclado, pré-carrega as vizinhas, e tem
   botões de anterior, selecionar, baixar a foto atual e próxima.
 - Seção de apoio com Pix e Instagram.
-- Os textos do hero (título e subtítulo) ainda não estão definidos: usar placeholders e
-  deixar fácil de trocar num único lugar.
+- Todos os textos do site (hero, seção de apoio, rodapé, título e descrição) ficam em
+  `site/src/config.ts`, num único lugar.
 - Chave Pix: ler de uma constante de configuração, nunca espalhar pelo código.
 - Acessibilidade: usar `<button>` e `<a>` reais, `aria-pressed` nos itens selecionáveis,
   alvos de toque com no mínimo 44 px, contraste adequado.

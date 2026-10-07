@@ -1,6 +1,6 @@
 # Galeria de fotos (carvalhovini.com)
 
-Galeria de fotos esportivas com download grátis em 4K, 2K, Full HD e HD, com marca d'água `@carvalho_.vini`.
+Galeria de fotos de hobby com download grátis em 4K, 2K, Full HD e HD, com marca d'água `@carvalho_.vini`.
 Detalhes do projeto e convenções em [AGENTS.md](AGENTS.md).
 
 ## Requisitos
@@ -83,7 +83,8 @@ O site lê `manifest.json` do bucket no navegador, então um jogo novo aparece a
 upload termina, sem novo build. Por padrão usa `https://fotos.carvalhovini.com`; para apontar
 para outro lugar, crie `site/.env` com `PUBLIC_R2_BASE_URL` (veja `site/.env.example`).
 
-Textos do topo, link do Instagram e chave Pix ficam em `site/src/config.ts`. Enquanto a chave
+Os textos do site (topo, seção de apoio, rodapé, título da aba e descrição), o link do
+Instagram e a chave Pix ficam em `site/src/config.ts`. Enquanto a chave
 for `[SUA-CHAVE-PIX]`, o cartão do Pix não aparece. No mesmo arquivo ficam o limite de um
 download (`DOWNLOAD_LIMIT_MB`, hoje 150 MB), o tamanho estimado de cada resolução e o tamanho
 do lote de fotos (36).

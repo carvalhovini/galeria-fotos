@@ -17,8 +17,10 @@ const { size, stroke, strokeWidth, class: className } = Astro.props;
   stroke={stroke}
   stroke-width={strokeWidth}
   stroke-linecap="round"
+  stroke-linejoin="round"
   aria-hidden="true"
 >
-  <circle cx="14" cy="14" r="11"></circle>
-  <path d="M3 14h22M14 3v22M6 6c4 3 4 13 0 16M22 6c-4 3-4 13 0 16"></path>
+  <rect x="3" y="8" width="22" height="15" rx="3"></rect>
+  <path d="M10 8l1.8-3h4.4L18 8"></path>
+  <circle cx="14" cy="15.5" r="4.5"></circle>
 </svg>

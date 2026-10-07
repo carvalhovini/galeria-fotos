@@ -3,14 +3,22 @@
 export const SITE = {
   name: 'carvalho_.vini',
   url: 'https://carvalhovini.com',
-  title: 'carvalho_.vini | Fotos de esporte',
-  description: 'Galeria de fotos de esporte. Escolha o jogo, selecione as fotos e baixe grátis.',
+  title: 'carvalho_.vini | Fotos',
+  description: 'Fotos que eu tiro por aí. Hobby de fotógrafo amador.',
 
   hero: {
-    eyebrow: 'Fotos de esporte',
-    title: 'O jogo pelas minhas lentes',
-    subtitle: 'Sou fotógrafo amador e faço isso porque gosto.',
+    title: 'Fotos que eu tiro por aí',
+    subtitle: 'É um hobby. Tiro de tudo um pouco e deixei aqui pra quem quiser baixar.',
   },
+
+  support: {
+    title: 'Gostou de alguma?',
+    intro: 'Pode baixar de graça. Se postar, me marca no Instagram que eu vou gostar de ver.',
+    instagramLabel: 'Me marca',
+    instagramText: 'Se postar alguma foto, marca o @carvalho_.vini.',
+  },
+
+  footer: "Fotos por @carvalho_.vini. Saem com marca d'água.",
 
   instagram: {
     handle: '@carvalho_.vini',

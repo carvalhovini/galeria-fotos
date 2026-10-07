@@ -147,24 +147,6 @@ img {
   padding-bottom: 32px;
 }
 
-.hero-ball {
-  position: absolute;
-  right: 24px;
-  top: 0;
-  max-width: 40%;
-  height: auto;
-}
-
-.eyebrow {
-  position: relative;
-  margin: 0 0 16px;
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .hero h1 {
   position: relative;
   margin: 0;
@@ -1020,9 +1002,6 @@ button:disabled {
 @media (max-width: 560px) {
   .masonry {
     --gap: 10px;
-  }
-  .hero-ball {
-    display: none;
   }
   .hero {
     padding: 28px 20px 20px;

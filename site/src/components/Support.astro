@@ -4,14 +4,8 @@ import InstagramIcon from './InstagramIcon.astro';
 ---
 
 <section id="apoie" class="support container">
-  <h2>Curtiu as fotos?</h2>
-  <p class="support-intro">
-    {
-      HAS_PIX
-        ? 'Tudo aqui é de graça e vai continuar sendo. Se quiser retribuir, tem dois jeitos, e os dois são opcionais.'
-        : 'Tudo aqui é de graça e vai continuar sendo. Se quiser retribuir, é só me marcar no Instagram.'
-    }
-  </p>
+  <h2>{SITE.support.title}</h2>
+  <p class="support-intro">{SITE.support.intro}</p>
   <div class="cards">
     {
       HAS_PIX && (
@@ -34,11 +28,8 @@ import InstagramIcon from './InstagramIcon.astro';
       )
     }
     <div class="card">
-      <p class="card-eyebrow">Só me marque</p>
-      <p class="card-text">
-        Vai postar alguma foto? Marca o <strong>{SITE.instagram.handle}</strong> no Instagram, assim eu vejo e outras pessoas
-        encontram o resto da galeria.
-      </p>
+      <p class="card-eyebrow">{SITE.support.instagramLabel}</p>
+      <p class="card-text">{SITE.support.instagramText}</p>
       <a class="pill pill-strong" href={SITE.instagram.url} target="_blank" rel="noopener">
         <InstagramIcon />
         Abrir o Instagram

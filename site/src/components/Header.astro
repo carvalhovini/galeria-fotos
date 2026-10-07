@@ -1,12 +1,12 @@
 ---
 import { SITE } from '../config';
-import BallIcon from './BallIcon.astro';
+import CameraIcon from './CameraIcon.astro';
 import InstagramIcon from './InstagramIcon.astro';
 ---
 
 <header class="site-header container">
   <a class="brand" href="/" aria-label={`${SITE.name}, início`}>
-    <BallIcon size={28} stroke="#FF6A2B" strokeWidth={2} />
+    <CameraIcon size={28} stroke="#FF6A2B" strokeWidth={2} />
     <span class="brand-name">{SITE.name}</span>
   </a>
   <a class="pill" href={SITE.instagram.url} target="_blank" rel="noopener">
