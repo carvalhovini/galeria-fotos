@@ -697,6 +697,8 @@ img {
 .sel-res-label {
   font-weight: 700;
   font-size: 15px;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .sel-res-px {
@@ -1100,6 +1102,14 @@ button:disabled {
   }
   .sel-res button {
     padding: 0 4px;
+  }
+  .sel-res button.is-format {
+    grid-column: span 2;
+  }
+  .sel-res .is-format .sel-res-label {
+    font-size: clamp(12.5px, 3.7vw, 14px);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
   }
   .sel-actions {
     width: 100%;

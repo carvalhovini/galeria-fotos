@@ -1,4 +1,4 @@
-import { R2_BASE_URL, type ResolutionId } from '../config';
+import { FORMAT_IDS, R2_BASE_URL, type ResolutionId } from '../config';
 
 export interface Photo {
   id: string;
@@ -15,6 +15,8 @@ export interface Album {
   cover?: string;
   // Opcional: até 5 tags curtas, minúsculas e sem acento.
   tags?: string[];
+  // Opcional: formatos do Instagram que todas as fotos do álbum têm.
+  formats?: ResolutionId[];
 }
 
 export interface Manifest {
@@ -50,6 +52,12 @@ function toTags(value: unknown): string[] | undefined {
   return tags.length > 0 ? tags : undefined;
 }
 
+function toFormats(value: unknown): ResolutionId[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const formats = FORMAT_IDS.filter((f) => value.includes(f));
+  return formats.length > 0 ? formats : undefined;
+}
+
 function isPhoto(p: unknown): p is Photo {
   const o = p as Photo;
   return !!o && typeof o.id === 'string' && ID_RE.test(o.id) && o.w > 0 && o.h > 0;
@@ -61,7 +69,7 @@ function toAlbum(a: unknown): Album | null {
   const photos = Array.isArray(o.photos) ? o.photos.filter(isPhoto) : [];
   if (photos.length === 0) return null;
   const cover = typeof o.cover === 'string' && photos.some((p) => p.id === o.cover) ? o.cover : undefined;
-  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos, cover, tags: toTags(o.tags) };
+  return { id: o.id, date: o.date, title: String(o.title ?? ''), photos, cover, tags: toTags(o.tags), formats: toFormats(o.formats) };
 }
 
 export function coverPhoto(album: Album): Photo {

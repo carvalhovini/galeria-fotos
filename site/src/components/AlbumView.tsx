@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { PHOTOS_PER_BATCH, bestFittingResolution, maxPhotosFor, resolution, type ResolutionId } from '../config';
+import { PHOTOS_PER_BATCH, bestFittingResolution, maxPhotosFor, resolution, resolutionsFor, type ResolutionId } from '../config';
 import { formatDateLong, photoCount, type Album } from '../lib/manifest';
 import Lightbox from './Lightbox';
 import Masonry, { useColumns } from './Masonry';
@@ -61,7 +61,7 @@ export default function AlbumView({ album, refs, selected, res, homeHref, onRes,
     }
     onSelectionChange(new Set(refs.slice(0, cap).map((r) => r.key)));
     if (total > max) {
-      const fit = bestFittingResolution(total);
+      const fit = bestFittingResolution(total, res);
       setNote(
         `Selecionadas as primeiras ${max} de ${total} fotos: é o que cabe em ${resolution(res).label} num download.` +
           (fit ? ` Em ${fit.label} cabem todas.` : ' Baixe em partes.'),
@@ -146,7 +146,13 @@ export default function AlbumView({ album, refs, selected, res, homeHref, onRes,
         </div>
       </main>
 
-      <SelectionBar items={selectedRefs} res={res} onRes={onRes} onClear={() => onSelectionChange(new Set())} />
+      <SelectionBar
+        items={selectedRefs}
+        options={resolutionsFor(album.formats)}
+        res={res}
+        onRes={onRes}
+        onClear={() => onSelectionChange(new Set())}
+      />
 
       <Lightbox items={refs} index={viewer} onIndex={changeViewer} isSelected={isSelected} onToggle={toggle} res={res} />
     </>

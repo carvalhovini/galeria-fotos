@@ -57,15 +57,19 @@ export const R2_BASE_URL = (import.meta.env.PUBLIC_R2_BASE_URL || 'https://fotos
 export const DOWNLOAD_LIMIT_MB = 150;
 
 // `mb`: tamanho médio estimado de uma foto nessa resolução.
+// `format`: recorte para o Instagram; só aparece nos álbuns que têm esses arquivos (`formats`).
 export const RESOLUTIONS = [
-  { id: '4k', label: '4K', px: 3840, mb: 1 },
-  { id: '2k', label: '2K', px: 2560, mb: 0.5 },
-  { id: 'fhd', label: 'Full HD', px: 1920, mb: 0.3 },
-  { id: 'hd', label: 'HD', px: 1280, mb: 0.15 },
+  { id: '4k', label: '4K', detail: '3840 px', mb: 1, format: false },
+  { id: '2k', label: '2K', detail: '2560 px', mb: 0.5, format: false },
+  { id: 'fhd', label: 'Full HD', detail: '1920 px', mb: 0.3, format: false },
+  { id: 'hd', label: 'HD', detail: '1280 px', mb: 0.15, format: false },
+  { id: 'ig45', label: 'Instagram 4:5', detail: '1080×1350', mb: 0.2, format: true },
+  { id: 'ig916', label: 'Instagram Stories 9:16', detail: '1080×1920', mb: 0.25, format: true },
 ] as const;
 
 export type ResolutionId = (typeof RESOLUTIONS)[number]['id'];
 export type Resolution = (typeof RESOLUTIONS)[number];
+export const FORMAT_IDS: readonly ResolutionId[] = RESOLUTIONS.filter((r) => r.format).map((r) => r.id);
 
 export const PHOTOS_PER_BATCH = 36;
 
@@ -77,9 +81,16 @@ export function maxPhotosFor(id: ResolutionId): number {
   return Math.floor(DOWNLOAD_LIMIT_MB / resolution(id).mb + 1e-9);
 }
 
-// Maior resolução em que `count` fotos cabem num download, ou null se nenhuma.
-export function bestFittingResolution(count: number): Resolution | null {
-  return RESOLUTIONS.find((r) => count <= maxPhotosFor(r.id)) ?? null;
+// Maior resolução em que `count` fotos cabem num download, ou null se nenhuma. Num formato do
+// Instagram não sugere trocar: as outras opções não têm o recorte.
+export function bestFittingResolution(count: number, current: ResolutionId): Resolution | null {
+  if (resolution(current).format) return null;
+  return RESOLUTIONS.find((r) => !r.format && count <= maxPhotosFor(r.id)) ?? null;
+}
+
+// Opções de download de um álbum: as resoluções de sempre e os formatos que ele tem.
+export function resolutionsFor(formats: readonly ResolutionId[] = []): Resolution[] {
+  return RESOLUTIONS.filter((r) => !r.format || formats.includes(r.id));
 }
 
 export const FILE_PREFIX = 'carvalho_.vini';

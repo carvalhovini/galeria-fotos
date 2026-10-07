@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { SITE, type ResolutionId } from '../config';
+import { SITE, resolutionsFor, type ResolutionId } from '../config';
 import { formatDateLong, loadManifest, normalizeTag, type Album } from '../lib/manifest';
 import AlbumCards from './AlbumCards';
 import AlbumView from './AlbumView';
@@ -78,6 +78,8 @@ export default function Gallery() {
   }, [albumId]);
 
   const album = albumId ? albums.find((a) => a.id === albumId) : undefined;
+  // A escolha fica guardada; num álbum sem o formato do Instagram escolhido, vale 4K.
+  const albumRes: ResolutionId = !album || resolutionsFor(album.formats).some((r) => r.id === res) ? res : '4k';
 
   useEffect(() => {
     if (status !== 'ready') return;
@@ -190,7 +192,7 @@ export default function Gallery() {
         album={album}
         refs={refs}
         selected={selections[album.id] ?? EMPTY}
-        res={res}
+        res={albumRes}
         homeHref={homeHref(activeFilter, activeTag)}
         onRes={setRes}
         onSelectionChange={(next) => setSelections((prev) => ({ ...prev, [album.id]: next }))}

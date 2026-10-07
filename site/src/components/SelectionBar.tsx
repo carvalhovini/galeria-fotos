@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { DOWNLOAD_LIMIT_MB, HAS_PIX, RESOLUTIONS, SITE, bestFittingResolution, maxPhotosFor, resolution, type ResolutionId } from '../config';
+import { DOWNLOAD_LIMIT_MB, HAS_PIX, SITE, bestFittingResolution, maxPhotosFor, resolution, type Resolution, type ResolutionId } from '../config';
 import { buildZip, canShareFiles, downloadFile, fetchBytes, saveBlob, shareJpeg } from '../lib/download';
 import { photoFileName as fileName, zipFileName as zipName } from '../lib/files';
 import { photoUrl } from '../lib/manifest';
@@ -8,6 +8,7 @@ import type { PhotoRef } from './types';
 
 interface Props {
   items: PhotoRef[];
+  options: Resolution[];
   res: ResolutionId;
   onRes: (res: ResolutionId) => void;
   onClear: () => void;
@@ -29,7 +30,7 @@ function isAbort(err: unknown) {
   return (err as Error)?.name === 'AbortError';
 }
 
-export default function SelectionBar({ items, res, onRes, onClear }: Props) {
+export default function SelectionBar({ items, options, res, onRes, onClear }: Props) {
   const [job, setJob] = useState<Job>({ kind: 'idle' });
   const [share, setShare] = useState<ShareState>('idle');
   const [shareSupported, setShareSupported] = useState(false);
@@ -40,7 +41,7 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
   const count = items.length;
   const max = maxPhotosFor(res);
   const overLimit = count > max;
-  const fitting = overLimit ? bestFittingResolution(count) : null;
+  const fitting = overLimit ? bestFittingResolution(count, res) : null;
   const working = job.kind === 'working';
   const signature = `${items.map((i) => i.key).join('|')}#${res}`;
   const resLabel = resolution(res).label;
@@ -159,10 +160,17 @@ export default function SelectionBar({ items, res, onRes, onClear }: Props) {
       </div>
 
       <div class="sel-res" role="group" aria-label="Resolução">
-        {RESOLUTIONS.map((r) => (
-          <button type="button" key={r.id} aria-pressed={res === r.id} onClick={() => onRes(r.id)} disabled={working}>
+        {options.map((r) => (
+          <button
+            type="button"
+            key={r.id}
+            class={r.format ? 'is-format' : undefined}
+            aria-pressed={res === r.id}
+            onClick={() => onRes(r.id)}
+            disabled={working}
+          >
             <span class="sel-res-label">{r.label}</span>
-            <span class="sel-res-px">{r.px} px</span>
+            <span class="sel-res-px">{r.detail}</span>
           </button>
         ))}
       </div>
