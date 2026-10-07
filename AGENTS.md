@@ -110,6 +110,7 @@ _publishing.json            # marcador gravado ao disparar a publicação
       "date": "2026-09-27",
       "title": "Nome do jogo",
       "cover": "IMG_0001",
+      "tags": ["parque", "por do sol"],
       "photos": [
         { "id": "IMG_0001", "w": 4928, "h": 3264, "t": "2026-09-27T15:04:05.120" }
       ]
@@ -124,8 +125,11 @@ não precisa repetir caminhos.
 Campos novos são sempre opcionais, para não quebrar manifests antigos. `cover` (opcional) é o
 `photoId` da capa do álbum; sem ele, ou se a foto não existir mais, a capa é a primeira foto.
 O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando a foto da capa
-é excluída. `t` (opcional) é o horário EXIF da foto como texto local sem fuso
-(`AAAA-MM-DDTHH:mm:ss.SSS`), igual em qualquer máquina; serve só para ordenar.
+é excluída. `tags` (opcional) é uma lista de até 5 textos curtos (até 24 caracteres), em
+minúsculas, sem acento, só letras, números, espaço e hífen (ex: `por do sol`); sem tags, o
+campo não existe. O upload mantém as tags ao reenviar. `t` (opcional) é o horário EXIF da foto
+como texto local sem fuso (`AAAA-MM-DDTHH:mm:ss.SSS`), igual em qualquer máquina; serve só
+para ordenar.
 
 ## Upload
 
@@ -139,7 +143,7 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
 - O `manifest.json` é gravado com escrita condicional (`If-Match` com o ETag lido, ou
   `If-None-Match: *` se não existir). Em conflito (412), ler de novo e refazer a mesclagem.
 - O álbum é unido ao publicado por id de foto: fotos existentes ficam com a entrada antiga
-  (só ganham `t` se não tinham), novas entram; título e capa são preservados. `--overwrite`
+  (só ganham `t` se não tinham), novas entram; título, capa e tags são preservados. `--overwrite`
   substitui as entradas repetidas. Se todas as fotos têm `t`, ordenar por `t`; senão as novas
   vão para o fim. Assim o workflow publica só as fotos novas sem apagar as antigas.
 - `scripts/inbox.js pull {albumId}` baixa a entrada para `originals/{albumId}/` e cria o
@@ -167,7 +171,9 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   `GITHUB_REPO`, `GITHUB_WORKFLOW`, `GITHUB_REF`; secrets `CF_API_TOKEN` (permissão só
   Zone > Cache Purge na zona), `CF_ZONE_ID` e `GITHUB_TOKEN` (fine-grained, só este repositório,
   Actions: Read and write).
-- API: `GET /api/albums`, `PATCH /api/albums/:id` (título), `POST /api/albums/:id/delete-photos`,
+- API: `GET /api/albums`, `PATCH /api/albums/:id` (`title`, `cover` e `tags`, sozinhos ou
+  juntos; `cover: null` volta para a primeira foto; tags normalizadas no servidor, mais de 5 ou
+  caractere inválido: 400), `POST /api/albums/:id/delete-photos`,
   `DELETE /api/albums/:id` (exige `confirmTitle` igual ao título), `POST /api/purge`
   (só URLs de `albums/` ou o `manifest.json` do domínio público), `GET /api/inbox`,
   `GET|DELETE /api/upload/:id` (listar para retomar / descartar), `PUT /api/upload/:id/_album.json`
@@ -178,6 +184,10 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   (até 5 vezes). Só depois apagar os arquivos, para o site nunca listar foto já apagada.
 - Excluir foto remove as 6 versões. Álbum sem fotos sai do manifest e tudo em
   `albums/{id}/` é apagado.
+- Capa e tags: na tela do álbum, com exatamente 1 foto selecionada, a barra mostra
+  "Definir como capa"; a capa atual tem o selo "Capa". O bloco "Tags" edita as tags com
+  sugestão das já usadas em outros álbuns. Título, capa e tags continuam editáveis durante
+  a publicação (a mesclagem do upload preserva esses campos).
 - Purge depois de excluir: por URL, no máximo 100 itens por chamada (limite atual dos planos
   Free/Pro/Business). A resposta das fotos varia com `Origin` (CORS), então cada URL vai
   também com o cabeçalho `Origin` de cada domínio em `PURGE_ORIGINS`, no mesmo lote, junto
@@ -210,7 +220,11 @@ O upload mantém o `cover` ao reenviar o álbum, e o gerenciador o remove quando
   Open Graph e Twitter): "carvalho_.vini | Fotos", descrição "Fotos que eu tiro por aí. Hobby
   de fotógrafo amador." Ícone do cabeçalho e favicon: câmera simples em traço, laranja.
 - Hero sem rótulo acima do título e sem desenho decorativo no fundo.
-- Home: chips de filtro por data (`?data=AAAA-MM-DD`) e cartões de álbum (capa 4:3, título,
+- Home: chips de filtro por data (`?data=AAAA-MM-DD`) e, se algum álbum tiver tags, chips de
+  filtro por tag (`?tag=...`, uma por vez), combináveis entre si. As contagens de cada linha
+  consideram o filtro da outra; escolher um chip que deixaria a combinação vazia limpa o outro
+  filtro, e uma URL sem resultado mostra "Nenhum álbum com esses filtros" com "Limpar filtros".
+  Cartões de álbum (capa 4:3, título,
   data por extenso, número de fotos), mais recentes primeiro. 3 colunas desktop, 2 tablet,
   1 celular.
 - Página do álbum em `?album=ID`, com History API (voltar do navegador e link compartilhável

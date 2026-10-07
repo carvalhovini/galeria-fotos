@@ -56,8 +56,8 @@ npm run upload -- 2026-09-27_final-estadual
   Uma cópia do manifest anterior fica em `output/manifest-backups/`. Se o gerenciador alterar
   o manifest no meio do upload, o script percebe (ETag), lê de novo e refaz a atualização.
 - O álbum é **unido** ao que já está publicado, foto a foto pelo id: fotos novas entram, as
-  que já estavam continuam (mesmo que não estejam em `originals/` agora), e título e capa são
-  mantidos. Com `--overwrite`, a entrada das fotos repetidas é substituída.
+  que já estavam continuam (mesmo que não estejam em `originals/` agora), e título, capa e
+  tags são mantidos. Com `--overwrite`, a entrada das fotos repetidas é substituída.
 - Cada foto nova leva no manifest o horário EXIF (`t`). Quando todas as fotos do álbum têm `t`,
   o álbum fica em ordem de horário, então fotos enviadas depois são intercaladas. Álbuns
   publicados antes disso (sem `t`) recebem as fotos novas no fim.
@@ -90,8 +90,9 @@ download (`DOWNLOAD_LIMIT_MB`, hoje 150 MB), o tamanho estimado de cada resoluç
 do lote de fotos (36).
 
 A home lista os álbuns em cartões; cada álbum abre em `?album={albumId}`, um link que pode ser
-compartilhado. Para escolher a capa de um álbum, adicione `"cover": "{photoId}"` ao álbum no
-`manifest.json`; sem isso, a capa é a primeira foto. O upload mantém essa capa ao reenviar.
+compartilhado. A capa e as tags de cada álbum são escolhidas no gerenciador; sem capa
+escolhida, vale a primeira foto. Se algum álbum tiver tags, a home mostra também um filtro por
+tag (`?tag=...`), que combina com o filtro por data (`?data=...`).
 
 O bucket precisa de uma regra de CORS liberando GET para as origens do site (o domínio
 final e `http://localhost:4321` em desenvolvimento), senão o manifest e os downloads falham.
@@ -99,7 +100,7 @@ final e `http://localhost:4321` em desenvolvimento), senão o manifest e os down
 ## Gerenciador (admin.carvalhovini.com)
 
 Projeto separado em `admin/`: um Worker com a API e uma interface leve para renomear álbuns,
-excluir fotos, excluir álbuns inteiros e enviar fotos pelo celular. Cada alteração guarda uma
+escolher a capa (selecione 1 foto e toque em "Definir como capa"), editar as tags, excluir fotos, excluir álbuns inteiros e enviar fotos pelo celular. Cada alteração guarda uma
 cópia do manifest anterior em `manifest-backups/` no bucket e, depois de excluir, limpa o
 cache da Cloudflare das URLs removidas.
 
