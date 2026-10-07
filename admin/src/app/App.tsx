@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Album, AlbumsResponse, DeleteResponse, InboxAlbum, PublishStatus } from '../shared/types';
 import AlbumList from './AlbumList';
 import AlbumView from './AlbumView';
 import { api, finishPurge } from './api';
-import { plural } from './format';
+import { plural, usedTags } from './format';
 import Notices, { type Notice } from './Notices';
 import PublishPanel from './PublishPanel';
 import UploadView from './UploadView';
@@ -144,15 +144,29 @@ export default function App() {
     }
   };
 
-  const handleRename = async (title: string) => {
+  const saveAlbum = async (patch: Parameters<typeof api.updateAlbum>[1], done: (album: Album) => string) => {
     if (!albumId) return;
     setBusy(true);
     try {
-      const r = await api.rename(albumId, title);
+      const r = await api.updateAlbum(albumId, patch);
       replaceAlbum(albumId, r.album);
-      notify('success', `Título alterado para "${r.album.title}". O site mostra o novo título em até 1 minuto.`);
+      notify('success', `${done(r.album)} O site mostra a mudança em até 1 minuto.`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleRename = (title: string) => saveAlbum({ title }, (a) => `Título alterado para "${a.title}".`);
+
+  const handleSaveTags = (tags: string[]) =>
+    saveAlbum({ tags }, (a) => (a.tags?.length ? `Tags salvas: ${a.tags.join(', ')}.` : 'Tags removidas.'));
+
+  const handleSetCover = async (photoId: string) => {
+    try {
+      await saveAlbum({ cover: photoId }, () => `Capa trocada para ${photoId}.`);
+    } catch (err) {
+      notify('error', `Não foi possível trocar a capa. ${errorText(err)}`);
+      throw err;
     }
   };
 
@@ -210,6 +224,7 @@ export default function App() {
   };
 
   const album = albumId ? data?.albums.find((a) => a.id === albumId) : undefined;
+  const tagSuggestions = useMemo(() => usedTags(data?.albums ?? []), [data]);
 
   return (
     <>
@@ -265,9 +280,12 @@ export default function App() {
             base={data.publicBaseUrl}
             busy={busy}
             lockMessage={publish?.busy ? (publish.message ?? 'Publicação em andamento.') : null}
+            tagSuggestions={tagSuggestions}
             onBack={() => navigate(null)}
             onAddPhotos={() => openUpload(album.id)}
             onRename={handleRename}
+            onSetCover={handleSetCover}
+            onSaveTags={handleSaveTags}
             onDeletePhotos={handleDeletePhotos}
             onDeleteAlbum={handleDeleteAlbum}
           />

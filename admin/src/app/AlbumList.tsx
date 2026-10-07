@@ -1,5 +1,5 @@
 import type { Album } from '../shared/types';
-import { formatDate, plural, thumbUrl } from './format';
+import { coverId, formatDate, plural, thumbUrl } from './format';
 
 interface Props {
   albums: Album[];
@@ -23,7 +23,10 @@ export default function AlbumList({ albums, base, onOpen }: Props) {
         <p class="empty">Nenhum álbum publicado ainda.</p>
       ) : (
         <ul class="album-list">
-          {albums.map((album) => (
+          {albums.map((album) => {
+            const cover = coverId(album);
+            const strip = [...album.photos.filter((p) => p.id === cover), ...album.photos.filter((p) => p.id !== cover)].slice(0, 4);
+            return (
             <li key={album.id}>
               <a
                 class="album-card"
@@ -35,7 +38,7 @@ export default function AlbumList({ albums, base, onOpen }: Props) {
                 }}
               >
                 <span class="album-strip" aria-hidden="true">
-                  {album.photos.slice(0, 4).map((p) => (
+                  {strip.map((p) => (
                     <img key={p.id} src={thumbUrl(base, album.id, p.id)} alt="" loading="lazy" width={120} height={120} />
                   ))}
                 </span>
@@ -43,10 +46,12 @@ export default function AlbumList({ albums, base, onOpen }: Props) {
                   <span class="album-card-date">{formatDate(album.date)}</span>
                   <span class="album-card-title">{album.title}</span>
                   <span class="album-card-count">{plural(album.photos.length, 'foto', 'fotos')}</span>
+                  {album.tags?.length ? <span class="album-card-tags">Tags: {album.tags.join(', ')}</span> : null}
                 </span>
               </a>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

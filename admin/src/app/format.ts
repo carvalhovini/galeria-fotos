@@ -1,3 +1,5 @@
+import type { Album } from '../shared/types';
+
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 export function formatDate(date: string): string {
@@ -17,6 +19,18 @@ export function formatSize(bytes: number): string {
 
 export function normalizeTitle(value: string): string {
   return value.normalize('NFC').replace(/\s+/g, ' ').trim();
+}
+
+// Mesma regra do site: sem `cover`, ou se a foto não existe mais, a capa é a primeira foto.
+export function coverId(album: Album): string | undefined {
+  return album.photos.some((p) => p.id === album.cover) ? album.cover : album.photos[0]?.id;
+}
+
+// Tags usadas nos álbuns, das mais usadas para as menos usadas.
+export function usedTags(albums: Album[]): string[] {
+  const counts = new Map<string, number>();
+  for (const a of albums) for (const t of a.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
 }
 
 export function thumbUrl(base: string, albumId: string, photoId: string): string {

@@ -1,24 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { TITLE_MAX, type Album } from '../shared/types';
 import ConfirmDialog from './ConfirmDialog';
-import { formatDate, normalizeTitle, plural, thumbUrl } from './format';
+import { coverId, formatDate, normalizeTitle, plural, thumbUrl } from './format';
+import TagEditor from './TagEditor';
 
 interface Props {
   album: Album;
   base: string;
   busy: boolean;
   lockMessage: string | null;
+  tagSuggestions: string[];
   onBack: () => void;
   onAddPhotos: () => void;
   onRename: (title: string) => Promise<void>;
+  onSetCover: (photoId: string) => Promise<void>;
+  onSaveTags: (tags: string[]) => Promise<void>;
   onDeletePhotos: (ids: string[]) => Promise<void>;
   onDeleteAlbum: (confirmTitle: string) => Promise<void>;
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Algo deu errado. Tente de novo.');
 
-export default function AlbumView({ album, base, busy, lockMessage, onBack, onAddPhotos, onRename, onDeletePhotos, onDeleteAlbum }: Props) {
+export default function AlbumView({
+  album,
+  base,
+  busy,
+  lockMessage,
+  tagSuggestions,
+  onBack,
+  onAddPhotos,
+  onRename,
+  onSetCover,
+  onSaveTags,
+  onDeletePhotos,
+  onDeleteAlbum,
+}: Props) {
   const locked = lockMessage !== null;
+  const cover = coverId(album);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(album.title);
@@ -89,6 +107,17 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
   };
 
   const removesWholeAlbum = count === album.photos.length;
+  const onlySelected = count === 1 ? [...selected][0] : null;
+
+  const setCover = async () => {
+    if (!onlySelected) return;
+    try {
+      await onSetCover(onlySelected);
+      setSelected(new Set());
+    } catch {
+      // o aviso de erro aparece no topo
+    }
+  };
 
   return (
     <section aria-labelledby="album-date" class={count > 0 ? 'has-bar' : undefined}>
@@ -172,6 +201,8 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
         </div>
       )}
 
+      <TagEditor tags={album.tags ?? []} suggestions={tagSuggestions} busy={busy} onSave={onSaveTags} />
+
       {locked && (
         <p class="lock-note" role="status">
           {lockMessage} Exclusões e novos envios ficam bloqueados até ela terminar.
@@ -181,7 +212,7 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
       <div class="toolbar">
         <p>
           {plural(album.photos.length, 'foto', 'fotos')}
-          <span class="muted"> · toque para selecionar</span>
+          <span class="muted"> · toque para selecionar ou trocar a capa</span>
         </p>
         <button type="button" class="btn-outline" disabled={busy} onClick={() => setSelected(allSelected ? new Set() : new Set(photoIds))}>
           {allSelected ? 'Desmarcar todas' : 'Selecionar todas'}
@@ -191,13 +222,14 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
       <ul class="admin-grid">
         {album.photos.map((photo, i) => {
           const on = selected.has(photo.id);
+          const isCover = photo.id === cover;
           return (
             <li key={photo.id}>
               <button
                 type="button"
                 class={`atile${on ? ' is-selected' : ''}`}
                 aria-pressed={on}
-                aria-label={`Foto ${i + 1}: ${photo.id}`}
+                aria-label={`Foto ${i + 1}: ${photo.id}${isCover ? ', capa do álbum' : ''}`}
                 disabled={busy}
                 onClick={() => toggle(photo.id)}
               >
@@ -209,6 +241,11 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
                     </svg>
                   )}
                 </span>
+                {isCover && (
+                  <span class="atile-cover" aria-hidden="true">
+                    Capa
+                  </span>
+                )}
                 <span class="atile-id">{photo.id}</span>
               </button>
             </li>
@@ -232,9 +269,16 @@ export default function AlbumView({ album, base, busy, lockMessage, onBack, onAd
               Limpar seleção
             </button>
           </div>
-          <button type="button" class="btn-danger" disabled={busy || locked} onClick={() => openDialog('photos')}>
-            Excluir {count === 1 ? 'foto' : `${count} fotos`}
-          </button>
+          <div class="action-buttons">
+            {onlySelected && onlySelected !== cover && (
+              <button type="button" class="btn-outline" disabled={busy} onClick={setCover}>
+                Definir como capa
+              </button>
+            )}
+            <button type="button" class="btn-danger" disabled={busy || locked} onClick={() => openDialog('photos')}>
+              Excluir {count === 1 ? 'foto' : `${count} fotos`}
+            </button>
+          </div>
         </div>
       )}
 

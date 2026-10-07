@@ -368,9 +368,13 @@ img {
   font-size: 17px;
 }
 
-.album-card-count {
+.album-card-count,
+.album-card-tags {
   color: var(--text-2);
   font-size: 14px;
+}
+.album-card-tags {
+  overflow-wrap: anywhere;
 }
 
 /* Álbum */
@@ -519,6 +523,93 @@ img {
   text-overflow: ellipsis;
 }
 
+.atile-cover {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tags-box {
+  margin: 0 0 20px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.tags-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tags-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 24px;
+  text-transform: uppercase;
+}
+.tags-empty {
+  margin: 8px 0 0;
+}
+.tag-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tag {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+}
+.tag.is-removable {
+  border-color: var(--accent);
+  background: #2a1c14;
+}
+.tag.is-suggestion {
+  color: var(--text-3);
+  border-style: dashed;
+}
+.tag-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tag-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-3);
+  background: var(--bg);
+  font-size: 16px;
+}
+.tag-suggest p {
+  margin: 12px 0 0;
+}
+.tags-box .rename-actions {
+  margin-top: 14px;
+}
+
 .danger-zone {
   margin-top: 40px;
   padding: 18px;
@@ -539,7 +630,7 @@ img {
 }
 
 .has-bar {
-  padding-bottom: 110px;
+  padding-bottom: 160px;
 }
 
 .action-bar {
@@ -551,9 +642,10 @@ img {
   width: calc(100% - 16px);
   max-width: 1068px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 12px;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--border-3);
@@ -570,6 +662,14 @@ img {
 }
 .action-count {
   font-weight: 700;
+  white-space: nowrap;
+}
+.action-buttons {
+  flex: 1 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* Diálogo de confirmação */
